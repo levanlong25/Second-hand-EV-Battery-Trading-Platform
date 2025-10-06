@@ -1,28 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Register - Second-hand EV Platform</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <h2>Register</h2>
-    <form action="{{ url_for('user_bp.register_form') }}" method="POST">
+{% extends "base.html" %}
+
+{% block title %}Đăng Ký Tài Khoản{% endblock %}
+{% block page_title %}Đăng Ký Tài Khoản Mới{% endblock %}
+
+{% block content %}
+<form action="{{ url_for('auth_site.register') }}" method="POST">
+    <div>
         <label for="email">Email:</label>
-        <input type="email" name="email" required><br><br>
-
-        <label for="full_name">Username:</label>
-        <input type="text" name="username" required><br><br>
-
-        <label for="password">Password:</label>
-        <input type="password" name="password" required><br><br>
-
-        <label for="role">Role:</label>
-        <Select>
-            <Option value="member">Member</Option>
-        </Select>
-        <br><br>
-        <button type="submit">Register</button>
-    </form>
-</body>
-</html>
+        <input type="email" id="email" name="email" required>
+    </div>
+    <div>
+        <label for="username">Tên người dùng:</label>
+        <input type="text" id="username" name="username" required>
+    </div>
+    <div>
+        <label for="password">Mật khẩu:</label>
+        <input type="password" id="password" name="password" required>
+    </div>
+    <button type="submit">Đăng Ký</button>
+</form>
+<p>Đã có tài khoản? <a href="{{ url_for('auth_site.login_form') }}">Đăng nhập</a></p>
+{% endblock %}

@@ -7,6 +7,7 @@ class User(db.Model):
     email = db.Column(db.String(120), nullable = False)
     password = db.Column(db.String(128), nullable = False)
     role = db.Column(db.String(20), default = "member")
+    status = db.Column(db.String(20), default = "active")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Thay đổi Tài khoản{% endblock %}
+
+{% block page_title %}Thay đổi Thông tin Tài khoản{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('auth_site.update') }}">
+    <p style="color: red;">* Lưu ý: Để thay đổi, bạn cần biết ID người dùng của mình.</p>
+    
+    {# Thường thì user_id nên được lấy từ session/context thay vì nhập tay #}
+    <div>
+        <label for="user_id">ID Người dùng (Chỉ để Test):</label>
+        <input type="text" id="user_id" name="user_id" placeholder="ID của bạn" required value="{{ session.get('user_id') if session.get('user_id') }}">
+    </div>
+
+    <h4 style="margin-top: 20px;">Thay đổi Tên đăng nhập</h4>
+    <div>
+        <label for="new_username">Tên đăng nhập mới (Tùy chọn):</label>
+        <input type="text" id="new_username" name="new_username" placeholder="Để trống nếu không thay đổi">
+    </div>
+
+    <h4 style="margin-top: 20px;">Thay đổi Mật khẩu</h4>
+    <div>
+        <label for="new_password">Mật khẩu mới (Tùy chọn):</label>
+        <input type="password" id="new_password" name="new_password" placeholder="Chỉ nhập nếu muốn thay đổi">
+    </div>
+
+    <div>
+        <button type="submit">Lưu Thay đổi Tài khoản</button>
+    </div>
+</form>
+{% endblock %}
