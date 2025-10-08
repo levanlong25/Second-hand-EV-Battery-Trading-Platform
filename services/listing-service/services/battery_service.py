@@ -85,3 +85,20 @@ class BatteryService:
                 "health_percent": b.health_percent,
                 "manufacturer": b.manufacturer
             }
+for b in batteries
+        ]
+
+    @staticmethod
+    def delete_battery(battery_id):
+        """Xóa pin theo ID"""
+        battery = Battery.query.get(battery_id)
+        if not battery:
+            return {"error": "Battery not found"}
+
+        db.session.delete(battery)
+        try:
+            db.session.commit()
+            return {"message": "Battery deleted successfully"}
+        except Exception as e:
+            db.session.rollback()
+            return {"error": f"Database error: {e}"}
