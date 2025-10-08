@@ -1,88 +1,113 @@
 from app import db
 from models.listing import Listing
+from services.vehicle_service import VehicleService
+from services.battery_service import BatteryService
 
 class ListingService:
-    """
-    Service xử lý các nghiệp vụ liên quan đến Listing
-    Bao gồm: tạo mới, cập nhật, xóa, lấy danh sách...
-    """
-
     @staticmethod
     def get_all_listings():
-        """Lấy tất cả các listing"""
-        return Listing.query.all()
+        lists = Listing.query.all()
+        if lists is None:
+            return {"error": "No listings found"}
+        return lists
 
     @staticmethod
     def get_listing_by_id(listing_id):
-        """Lấy thông tin listing theo ID"""
-        return Listing.query.get(listing_id)
+        list =  Listing.query.get(listing_id)
+        if not list:
+            return {"error": "Listing not exists"}
+        return list
+    
+    @staticmethod
+    def get_listings_by_type(listing_type):
+        lists = Listing.query.filter_by(type=listing_type).all()
+        if lists is None:
+            return {"error": "No listings found for this type"}
+        return lists
+    
+    @staticmethod
+    def get_listings_by_vehicle_id(vehicle_id):
+        lists = Listing.query.filter_by(vehicle_id=vehicle_id).all()
+        if lists is None:
+            return {"error": "No listings found for this vehicle"}
+        return lists
+    
+    @staticmethod
+    def get_listings_by_battery_id(battery_id):
+        lists = Listing.query.filter_by(battery_id=battery_id).all()
+        if lists is None:
+            return {"error": "No listings found for this battery"}
+        return lists
 
     @staticmethod
     def get_listings_by_seller(seller_id):
-        """Lấy tất cả listing của 1 người bán"""
-        return Listing.query.filter_by(seller_id=seller_id).all()
+        lists = Listing.query.filter_by(seller_id=seller_id).all()
+        if lists is None:
+            return {"error": "No listings found for this seller"}
+        return lists
 
     @staticmethod
-    def create_listing(data):
-        """Tạo mới một listing"""
-        try:
-            new_listing = Listing(
-                seller_id=data.get('seller_id'),
-                type=data.get('type'),
-                title=data.get('title'),
-                description=data.get('description'),
-                price=data.get('price'),
-                status=data.get('status', 'available'),
-                ai_suggested_price=data.get('ai_suggested_price'),
-                is_verified=data.get('is_verified', False)
-            )
+    def create_listing(vehicle_id, battery_id, seller_id, type, title, description, price, status='available', ai_suggested_price=None, is_verified=False):
+        if type == 'vehicle':
+            if not vehicle_id:
+                return {"error": "vehicle_id is required for type 'vehicle'"}            
+            vehicle = VehicleService.get_vehicle_by_id(vehicle_id)
+            if "error" in vehicle:
+                return {"error": f"Vehicle with id {vehicle_id} not found"}
+            battery_id = None
+        elif type == 'battery':
+            if not battery_id:
+                return {"error": "battery_id is required for type 'battery'"}
+                
+            battery = BatteryService.get_battery_by_id(battery_id)
+            if "error" in battery:
+                return {"error": f"Battery with id {battery_id} not found"}
+            vehicle_id = None            
+        else:
+            return {"error": "Invalid listing type specified. Must be 'vehicle' or 'battery'."}
+        new_listing = Listing(
+            vehicle_id=vehicle_id,
+            battery_id=battery_id, 
+            seller_id=seller_id,
+            type=type,
+            title=title,
+            description=description,
+            price=price,
+            status=status,
+            ai_suggested_price=ai_suggested_price,
+            is_verified=is_verified
+        )
+        
+        db.session.add(new_listing)
+        db.session.commit()
+        
+        return {"message": "Listing created successfully", "listing_id": new_listing.listing_id}
 
-            db.session.add(new_listing)
-            db.session.commit()
-            return new_listing
-
-        except Exception as e:
-            db.session.rollback()
-            print(f"Lỗi khi tạo listing: {e}")
-            return None
+        
 
     @staticmethod
-    def update_listing(listing_id, data):
-        """Cập nhật thông tin listing"""
-        listing = Listing.query.get(listing_id)
-        if not listing:
-            return None
-
-        try:
-            listing.type = data.get('type', listing.type)
-            listing.title = data.get('title', listing.title)
-            listing.description = data.get('description', listing.description)
-            listing.price = data.get('price', listing.price)
-            listing.status = data.get('status', listing.status)
-            listing.ai_suggested_price = data.get('ai_suggested_price', listing.ai_suggested_price)
-            listing.is_verified = data.get('is_verified', listing.is_verified)
-
-            db.session.commit()
-            return listing
-
-        except Exception as e:
-            db.session.rollback()
-            print(f"Lỗi khi cập nhật listing {listing_id}: {e}")
-            return None
-
+    def update_listing(listing_id, new_title = None, new_description = None, new_price = None, new_status = None):
+        list = Listing.query.get(listing_id)
+        if not list:
+            return {"error": "Listing not exists"}
+        if new_title != None:
+            list.title = new_title
+        if new_description != None:
+            list.description = new_description
+        if new_price != None:
+            list.price = new_price
+        if new_status != None:
+            list.status = new_status
+        db.session.commit()
+        return {"message": "Listing updated successfully"}
+        
     @staticmethod
     def delete_listing(listing_id):
         """Xóa một listing"""
         listing = Listing.query.get(listing_id)
         if not listing:
-            return None
+            return {"error": "Listing not exists"}
 
-        try:
-            db.session.delete(listing)
-            db.session.commit()
-            return True
-
-        except Exception as e:
-            db.session.rollback()
-            print(f"Lỗi khi xóa listing {listing_id}: {e}")
-            return False
+        db.session.delete(listing)
+        db.session.commit()
+        return {{"message": "Listing deleted successfully"}}
