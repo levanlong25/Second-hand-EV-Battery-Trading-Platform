@@ -51,3 +51,41 @@ class VehicleService:
         db.session.delete(vehicle)
         db.session.commit()
         return {"message": "Vehicle deleted successfully"}
+    @staticmethod
+    def post_to_the_listing(vehicle_id, seller_id, type, title, description, price):
+        vehicle = Vehicle.query.get(vehicle_id)
+        if not vehicle:
+            return {"error": "Vehicle not exists"}
+        seller_id = vehicle.user_id
+        type = 'vehicle'
+        result = ListingService.create_listing(vehicle_id, seller_id, type, title, description, price)
+        if "error" in result:
+            return result["error"]   
+        return result["message"]
+    @staticmethod
+    def remove_from_the_list(vehicle_id):
+        vehicle = Vehicle.query.get(vehicle_id)
+        if not vehicle:
+            return {"error": "Vehicle not exists"}
+        listing = ListingService.get_listings_by_vehicle_id(vehicle_id)
+        if "error" in listing:
+            return {"error": "This vehicle is not in any listing"}
+        listing_id = listing.listing_id
+        result = ListingService.delete_listing(listing_id)
+        if "error" in result:
+            return result["error"]
+        return result["message"]
+    
+    @staticmethod
+    def update_listing(vehicle_id, new_title = None, new_description = None, new_price = None, new_status = None):
+        vehicle = Vehicle.query.get(vehicle_id)
+        if not vehicle:
+            return {"error": "Vehicle not exists"}
+        listing = ListingService.get_listings_by_vehicle_id(vehicle_id)
+        if "error" in listing:
+            return {"error": "This vehicle is not in any listing"}
+        listing_id = listing.listing_id
+        result = ListingService.update_listing(listing_id, new_title, new_description, new_price, new_status)
+        if "error" in result:
+            return result["error"]
+        return result["message"]
