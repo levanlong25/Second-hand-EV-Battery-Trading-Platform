@@ -1,29 +1,19 @@
 from app import db
 from models.battery import Battery
 from models.listing import Listing
+from services.listing_service import ListingService
 
 class BatteryService:
     @staticmethod
     def addBattery(listing_id, capacity_kwh, health_percent, manufacturer):
-        """Thêm một pin mới vào cơ sở dữ liệu"""
-        listing = Listing.query.get(listing_id)
-        if not listing:
-            return {"error": "Listing not found"}
-
         battery = Battery(
             listing_id=listing_id,
             capacity_kwh=capacity_kwh,
             health_percent=health_percent,
             manufacturer=manufacturer
         )
-
         db.session.add(battery)
-        try:
-            db.session.commit()
-            return {"message": "Battery added successfully", "battery_id": battery.battery_id}
-        except Exception as e:
-            db.session.rollback()
-            return {"error": f"Database error: {e}"}
+        db.session.commit()
 
     @staticmethod
     def updateBatteryStatus(battery_id, capacity_kwh=None, health_percent=None):
@@ -36,28 +26,15 @@ class BatteryService:
             battery.capacity_kwh = capacity_kwh
         if health_percent is not None:
             battery.health_percent = health_percent
-
-        try:
-            db.session.commit()
-            return {"message": "Battery updated successfully"}
-        except Exception as e:
-            db.session.rollback()
-            return {"error": f"Database error: {e}"}
-
+        db.session.commit()
+        return {"message": "Battery updated successfully"}
     @staticmethod
     def get_all_batteries():
         """Lấy danh sách tất cả pin"""
         batteries = Battery.query.all()
-        return [
-            {
-                "battery_id": b.battery_id,
-                "listing_id": b.listing_id,
-                "capacity_kwh": b.capacity_kwh,
-                "health_percent": b.health_percent,
-                "manufacturer": b.manufacturer
-            }
-            for b in batteries
-        ]
+        if not batteries:
+            return {"error": "No batteries found"}
+        return batteries
 
     @staticmethod
     def get_battery_by_id(battery_id):
@@ -65,28 +42,7 @@ class BatteryService:
         battery = Battery.query.get(battery_id)
         if not battery:
             return {"error": "Battery not found"}
-        return {
-            "battery_id": battery.battery_id,
-            "listing_id": battery.listing_id,
-            "capacity_kwh": battery.capacity_kwh,
-            "health_percent": battery.health_percent,
-            "manufacturer": battery.manufacturer
-        }
-
-    @staticmethod
-    def get_batteries_by_listing(listing_id):
-        """Lấy tất cả pin thuộc một listing"""
-        batteries = Battery.query.filter_by(listing_id=listing_id).all()
-        return [
-            {
-                "battery_id": b.battery_id,
-                "listing_id": b.listing_id,
-                "capacity_kwh": b.capacity_kwh,
-                "health_percent": b.health_percent,
-                "manufacturer": b.manufacturer
-            }
-for b in batteries
-        ]
+        return battery
 
     @staticmethod
     def delete_battery(battery_id):
@@ -96,9 +52,60 @@ for b in batteries
             return {"error": "Battery not found"}
 
         db.session.delete(battery)
-        try:
-            db.session.commit()
-            return {"message": "Battery deleted successfully"}
-        except Exception as e:
-            db.session.rollback()
-            return {"error": f"Database error: {e}"}
+        db.session.commit()
+        return {"message": "Battery deleted successfully"}
+    
+    @staticmethod
+    def get_batteries_by_user_id(user_id):
+        """Lấy danh sách pin theo user_id"""
+        batteries = Battery.query.filter_by(user_id=user_id).all()
+        if not batteries:
+            return {"error": "No batteries found for this user"}
+        return batteries
+    
+    @staticmethod
+    def post_battery_to_listing(battery_id, seller_id, type, title, description, price):
+        battery = Battery.query.get(battery_id)
+        if not battery:
+            return {"error": "Battery not found"}
+        seller_id = battery.user_id
+        type = 'battery'
+        new_listing = Listing(
+            item_id=battery_id,
+            seller_id=seller_id,
+            type=type,
+            title=title,
+            description=description,
+            price=price
+        )
+        db.session.add(new_listing)
+        db.session.commit()
+        return {"message": "Battery listed successfully", "listing_id": new_listing.listing_id}
+    
+    @staticmethod
+    def remove_battery_from_listing(battery_id):
+        battery = Battery.query.get(battery_id)
+        if not battery:
+            return {"error": "Battery not found"}
+        listing = ListingService.get_listings_by_battery_id(battery_id)
+        if "error" in listing:
+            return {"error": "Listing not found for this battery"}
+        listing = listing.listing_id
+        result = ListingService.delete_listing(listing)
+        if "error" in result:
+            return result["error"]
+        return result["message"]
+    
+    @staticmethod
+    def update_battery_listing(battery_id, new_title=None, new_description=None, new_price=None, new_status=None):
+        battery = Battery.query.get(battery_id)
+        if not battery:
+            return {"error": "Battery not found"}
+        listing = ListingService.get_listings_by_battery_id(battery_id)
+        if "error" in listing:
+            return {"error": "Listing not found for this battery"}
+        listing = listing.listing_id
+        result = ListingService.update_listing(listing, new_title=new_title, new_description=new_description, new_price=new_price, new_status=new_status)
+        if "error" in result:
+            return result["error"]
+        return result["message"]
