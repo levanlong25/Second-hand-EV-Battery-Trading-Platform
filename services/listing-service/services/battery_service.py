@@ -71,7 +71,7 @@ class BatteryService:
         seller_id = battery.user_id
         type = 'battery'
         new_listing = Listing(
-            item_id=battery_id,
+            battery_id=battery_id,
             seller_id=seller_id,
             type=type,
             title=title,

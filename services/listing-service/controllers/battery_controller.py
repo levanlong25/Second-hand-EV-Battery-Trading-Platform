@@ -1,53 +1,74 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, flash, render_template, redirect, url_for
 from services.battery_service import BatteryService
 
 battery_bp = Blueprint("battery_bp", __name__)
 
+# =========================
 # Thêm pin mới
+# =========================
 @battery_bp.route("/batteries/add", methods=["POST"])
 def add_battery():
-    data = request.get_json()
-    listing_id = data.get("listing_id")
-    capacity_kwh = data.get("capacity_kwh")
-    health_percent = data.get("health_percent")
-    manufacturer = data.get("manufacturer")
+    capacity_kwh = request.form.get("capacity_kwh")
+    health_percent = request.form.get("health_percent")
+    manufacturer = request.form.get("manufacturer")
 
-    if not all([listing_id, capacity_kwh, health_percent, manufacturer]):
-        return jsonify({"error": "Missing required fields"}), 400
+    # Kiểm tra dữ liệu
+    if not all([capacity_kwh, health_percent, manufacturer]):
+        flash("Missing required fields", "error")
+        return redirect(url_for("battery_bp.show_add_form"))
 
-    result = BatteryService.addBattery(listing_id, capacity_kwh, health_percent, manufacturer)
-    return jsonify(result)
+    battery = BatteryService.addBattery(
+        capacity_kwh=capacity_kwh,
+        health_percent=health_percent,
+        manufacturer=manufacturer
+    )
 
+    if "error" in battery:
+        flash(battery["error"], "error")
+        return redirect(url_for("battery_bp.show_add_form"))
+
+    flash("Battery added successfully", "success")
+    return redirect(url_for("battery_bp.get_all_batteries"))
+
+
+# =========================
 # Cập nhật thông tin pin
-@battery_bp.route("/batteries/update/<int:battery_id>", methods=["PUT"])
+# =========================
+@battery_bp.route("/batteries/update/<int:battery_id>", methods=["POST"])
 def update_battery(battery_id):
-    data = request.get_json()
-    capacity_kwh = data.get("capacity_kwh")
-    health_percent = data.get("health_percent")
+    capacity_kwh = request.form.get("capacity_kwh")
+    health_percent = request.form.get("health_percent")
 
-    result = BatteryService.updateBatteryStatus(battery_id, capacity_kwh, health_percent)
-    return jsonify(result)
+    if not all([capacity_kwh, health_percent]):
+        flash("Missing required fields", "error")
+        return redirect(url_for("battery_bp.get_all_batteries"))
 
+    result = BatteryService.updateBatteryStatus(
+        battery_id,
+        capacity_kwh=capacity_kwh,
+        health_percent=health_percent
+    )
+
+    if "error" in result:
+        flash(result["error"], "error")
+        return redirect(url_for("battery_bp.get_all_batteries"))
+
+    flash("Battery updated successfully", "success")
+    return redirect(url_for("battery_bp.get_all_batteries"))
+
+
+# =========================
 # Lấy danh sách tất cả pin
+# =========================
 @battery_bp.route("/batteries", methods=["GET"])
 def get_all_batteries():
     result = BatteryService.get_all_batteries()
-    return jsonify(result)
+    return render_template("batteries/list.html", batteries=result)
 
-# Lấy thông tin pin theo ID
-@battery_bp.route("/batteries/<int:battery_id>", methods=["GET"])
-def get_battery_by_id(battery_id):
-    result = BatteryService.get_battery_by_id(battery_id)
-    return jsonify(result)
 
-# Lấy pin theo listing_id
-@battery_bp.route("/batteries/listing/<int:listing_id>", methods=["GET"])
-def get_batteries_by_listing(listing_id):
-    result = BatteryService.get_batteries_by_listing(listing_id)
-    return jsonify(result)
-
-# Xóa pin
-@battery_bp.route("/batteries/delete/<int:battery_id>", methods=["DELETE"])
-def delete_battery(battery_id):
-    result = BatteryService.delete_battery(battery_id)
-    return jsonify(result)
+# =========================
+# Trang thêm pin (form)
+# =========================
+@battery_bp.route("/batteries/add", methods=["GET"])
+def show_add_form():
+    return render_template("batteries/add.html")

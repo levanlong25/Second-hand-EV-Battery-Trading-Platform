@@ -10,7 +10,7 @@ class Battery(db.Model):
     manufacturer = db.Column(db.String(50), nullable=False)
 
     # Quan hệ với bảng listings
-    listing = db.relationship('Listing', backref=db.backref('batteries', lazy=True))
+    listing = db.relationship('Listing', back_populates='batteries')
 
     def __repr__(self):
         return f'<Battery {self.battery_id} - {self.manufacturer}, {self.capacity_kwh}kWh>'

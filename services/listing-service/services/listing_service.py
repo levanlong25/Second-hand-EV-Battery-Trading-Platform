@@ -2,6 +2,9 @@ from app import db
 from models.listing import Listing
 from services.vehicle_service import VehicleService
 from services.battery_service import BatteryService
+from models.listing_image import ListingImage
+from models.report import Report
+from models.watchlist import WatchList
 
 class ListingService:
     @staticmethod
@@ -111,3 +114,108 @@ class ListingService:
         db.session.delete(listing)
         db.session.commit()
         return {{"message": "Listing deleted successfully"}}
+    
+    @staticmethod
+    def add_image_to_listing(listing_id, image_url):
+        listing = Listing.query.get(listing_id)
+        if not listing:
+            return {"error": "Listing not exists"}
+        new_image = ListingImage(
+            listing_id=listing_id,
+            url=image_url
+        )
+        db.session.add(new_image)
+        db.session.commit()
+        return {"message": "Image added to listing successfully", "image_id": new_image.image_id}
+    @staticmethod
+    def get_images_by_listing_id(listing_id):
+        images = ListingImage.query.filter_by(listing_id=listing_id).all()
+        if images is None:
+            return {"error": "No images found for this listing"}
+        return images
+    @staticmethod
+    def delete_image(image_id):
+        image = ListingImage.query.get(image_id)
+        if not image:
+            return {"error": "Image not exists"}
+
+        db.session.delete(image)
+        db.session.commit()
+        return {"message": "Image deleted successfully"}
+    @staticmethod
+    def update_image(image_id, new_url):
+        image = ListingImage.query.get(image_id)
+        if not image:
+            return {"error": "Image not exists"}
+        image.url = new_url
+        db.session.commit()
+        return {"message": "Image updated successfully"}
+    @staticmethod
+    def verify_listing(listing_id):
+        listing = Listing.query.get(listing_id)
+        if not listing:
+            return {"error": "Listing not exists"}
+        listing.is_verified = True
+        db.session.commit()
+        return {"message": "Listing verified successfully"}
+    @staticmethod
+    def update_status(listing_id, new_status):
+        listing = Listing.query.get(listing_id)
+        if not listing:
+            return {"error": "Listing not exists"}
+        listing.status = new_status
+        db.session.commit()
+        return {"message": "Listing status updated successfully"}
+    @staticmethod
+    def suggest_price():
+        pass
+    @staticmethod
+    def create_report(reporter_id, listing_id, report_type):
+        listing = Listing.query.get(listing_id)
+        if not listing:
+            return {"error": "Listing not exists"}
+        if report_type not in ['seller', 'transaction', 'listing', 'other']:
+            return {"error": "Invalid report type"}
+        new_report = Report(
+            reporter_id=reporter_id,
+            listing_id=listing_id,
+            report_type=report_type
+        )
+        db.session.add(new_report)
+        db.session.commit()
+        return {"message": "Report created successfully", "report_id": new_report.report_id}
+    @staticmethod
+    def get_reports_by_listing_id(listing_id):
+        reports = Report.query.filter_by(listing_id=listing_id).all()
+        if reports is None:
+            return {"error": "No reports found for this listing"}
+        return reports
+    @staticmethod
+    def add_to_watchlist(user_id, listing_id):
+        listing = Listing.query.get(listing_id)
+        if not listing:
+            return {"error": "Listing not exists"}
+        existing_entry = WatchList.query.filter_by(user_id=user_id, listing_id=listing_id).first()
+        if existing_entry:
+            return {"error": "Listing already in watchlist"}
+        new_watchlist_entry = WatchList(
+            user_id=user_id,
+            listing_id=listing_id
+        )
+        db.session.add(new_watchlist_entry)
+        db.session.commit()
+        return {"message": "Listing added to watchlist successfully", "watchlist_id": new_watchlist_entry.id}
+    @staticmethod
+    def remove_from_watchlist(user_id, listing_id):
+        entry = WatchList.query.filter_by(user_id=user_id, listing_id=listing_id).first()
+        if not entry:
+            return {"error": "Listing not in watchlist"}
+        db.session.delete(entry)
+        db.session.commit()
+        return {"message": "Listing removed from watchlist successfully"}
+    @staticmethod
+    def get_watchlist_by_user(user_id):
+        entries = WatchList.query.filter_by(user_id=user_id).all()
+        if entries is None:
+            return {"error": "No watchlist entries found for this user"}
+        return entries

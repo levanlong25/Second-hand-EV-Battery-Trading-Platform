@@ -10,3 +10,5 @@ class Profile(db.Model):
     avatar_url = db.Column(db.String(255))
     address = db.Column(db.Text)
     bio = db.Column(db.Text)
+
+    user = db.relationship("User", back_populates="profile")

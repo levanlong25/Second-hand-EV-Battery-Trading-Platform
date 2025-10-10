@@ -6,17 +6,17 @@ import os
 import jwt
 
 SECRET_KEY = "081025"
-
-ADMIN_SERVICE_URL = os.getenv("ADMIN_SERVICE_URL", "http://localhost:5002/admin")
+ADMIN_SERVICE_URL = "http://admin-service:5000"
 
 auth_site = Blueprint("auth_site", __name__)
 
 class UserController:
-    @auth_site.route("/register", methods = ["GET"])
+
+    @auth_site.route("/register", methods=["GET"])
     def register_form():
         return render_template("register.html")
 
-    @auth_site.route("/register", methods = ["POST"])
+    @auth_site.route("/register", methods=["POST"])
     def register():
         email = request.form["email"]
         username = request.form["username"]
@@ -27,11 +27,11 @@ class UserController:
             return redirect(url_for("auth_site.register_form"))
         return redirect(url_for("auth_site.login_form"))
 
-    @auth_site.route("/login", methods = ["GET"])
+    @auth_site.route("/login", methods=["GET"])
     def login_form():
         return render_template("login.html")
 
-    @auth_site.route("/login", methods = ["POST"])
+    @auth_site.route("/login", methods=["POST"])
     def login():
         email_username = request.form["email_username"]
         password = request.form["password"]
@@ -41,18 +41,20 @@ class UserController:
             flash(login_result["error"])
             return redirect(url_for("auth_site.login_form"))
         user = login_result
-        session['user_id'] = user.user_id 
+        session['user_id'] = user.user_id
         if remember_me:
             r.setex(f"remember:{user.user_id}", 60*60*24*7, "remembered")
         if user.role == "admin":
             flash(f"Chào mừng quản trị viên {user.username}!", "success")
-            return redirect(f"{ADMIN_SERVICE_URL}/dashboard")        
+            return redirect(f"{ADMIN_SERVICE_URL}/dashboard")
         flash(f"Đăng nhập thành công! Chào mừng {user.username}.")
         return redirect(url_for("profile_site.get_profile"))
-    @auth_site.route("/forget-password", methods = ["GET"])
+
+    @auth_site.route("/forget-password", methods=["GET"])
     def forget_password_form():
         return render_template("forget_password.html")
-    @auth_site.route("/send-otp", methods = ["POST"])
+
+    @auth_site.route("/send-otp", methods=["POST"])
     def send_reset_otp_form():
         email = request.form["email"]
         result = UserService.send_reset_otp(email)
@@ -60,8 +62,9 @@ class UserController:
             flash(result["error"])
         else:
             flash(result["message"])
-        return redirect(url_for("auth_site.forget_password_form", email = email))
-    @auth_site.route("/reset-password", methods = ["POST"])
+        return redirect(url_for("auth_site.forget_password_form", email=email))
+
+    @auth_site.route("/reset-password", methods=["POST"])
     def reset_password_form():
         email = request.form["email"]
         input_otp = request.form["input_otp"]
@@ -72,11 +75,12 @@ class UserController:
             return redirect(url_for("auth_site.forget_password_form"))
         flash(result["message"])
         return redirect(url_for("auth_site.login_form"))
-    
-    @auth_site.route("/update", methods = ["GET"])
+
+    @auth_site.route("/update", methods=["GET"])
     def update_form():
         return render_template("change_information.html")
-    @auth_site.route("/update", methods = ["POST"])
+
+    @auth_site.route("/update", methods=["POST"])
     def update():
         user_id = request.form["user_id"]
         new_username = request.form["new_username"]
@@ -87,7 +91,8 @@ class UserController:
             return redirect(url_for("auth_site.login_form"))
         flash(result["message"])
         return redirect(url_for("auth_site.profile"))
-    @auth_site.route("/delete", methods = ["POST"])
+
+    @auth_site.route("/delete", methods=["POST"])
     def delete():
         user_id = request.form["user_id"]
         result = UserService.delete_user_by_id(user_id)

@@ -1,44 +1,51 @@
+from app import db, r  # Giả sử bạn đã khởi tạo db (SQLAlchemy) và r (Redis) trong app.py
 from models.profile import Profile
-from app import db
+from models.user import User
+
 
 class ProfileService:
     @staticmethod
-    def create_empty_profile(user_id): 
+    def create_empty_profile(user_id, full_name=None):
         if Profile.query.filter_by(user_id=user_id).first():
-            return {"message": "Profile already exists for this user"}            
+            # Trả về (None, error_message)
+            return None, "Profile already exists for this user"
+        
         new_profile = Profile(
             user_id=user_id,
-            full_name=None,
-            phone_number=None,
-            avatar_url=None,
-            address=None,
-            bio=None
+            full_name=full_name, # Có thể lấy tên ban đầu từ username
         )
-        db.session.add(new_profile) 
-        return new_profile
+        db.session.add(new_profile)
+        # Trả về (result, None)
+        return new_profile, None
+
     @staticmethod
     def get_profile_by_user_id(user_id):
-        return Profile.query.filter_by(user_id = user_id).first()
+        return Profile.query.filter_by(user_id=user_id).first()
+
     @staticmethod
-    def update_profile(user_id, new_full_name=None, new_phone_number=None, new_address=None, new_bio=None): 
-        profile = ProfileService.get_profile_by_user_id(user_id)        
+    def update_profile(user_id, new_data):
+        profile = ProfileService.get_profile_by_user_id(user_id)
         if not profile:
-            return {"error": "Profile not found"}
-        if new_full_name is not None and new_full_name.strip() != "":
-            profile.full_name = new_full_name
-        if new_phone_number is not None and new_phone_number.strip() != "":
-            profile.phone_number = new_phone_number
-        if new_address is not None and new_address.strip() != "":
-            profile.address = new_address
-        if new_bio is not None and new_bio.strip() != "":
-            profile.bio = new_bio           
+            return None, "Profile not found"
+
+        # Cập nhật các trường nếu chúng tồn tại trong new_data
+        if 'full_name' in new_data:
+            profile.full_name = new_data['full_name']
+        if 'phone_number' in new_data:
+            profile.phone_number = new_data['phone_number']
+        if 'address' in new_data:
+            profile.address = new_data['address']
+        if 'bio' in new_data:
+            profile.bio = new_data['bio']
+        
         db.session.commit()
-        return {"message": "Profile updated successfully"}
+        return profile, None
+        
     @staticmethod
-    def update_avatar(user_id, new_avatar):
-        profile = ProfileService.get_profile_by_user_id(user_id)        
+    def update_avatar(user_id, avatar_url):
+        profile = ProfileService.get_profile_by_user_id(user_id)
         if not profile:
-            return {"error": "Profile not found"}
-        profile.avatar_url = new_avatar
+            return None, "Profile not found"
+        profile.avatar_url = avatar_url
         db.session.commit()
-        return {"message": "Avatar updated successfully"}
+        return profile, None
