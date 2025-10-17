@@ -1,91 +1,89 @@
-from models.vehicle import Vehicle
-from services.listing_service import ListingService
 from app import db
+from models.vehicle import Vehicle
 
 class VehicleService:
     @staticmethod
-    def get_vehicle_by_id(vehicle_id):
-        vehicle = Vehicle.query.get(vehicle_id)
-        if not vehicle:
-            return {"error": "Vehicle not exists"}
-        return vehicle
-    @staticmethod
-    def get_vehicles_by_user_id(user_id):
-        vehicles = Vehicle.query.filter_by(user_id=user_id).all()
-        return vehicles
-    
-    @staticmethod
-    def create_vehicle(user_id, brand, model, year, mileage):
+    def create_vehicle(user_id, data):
+        """Thêm một chiếc xe mới vào kho cá nhân của người dùng."""
+        # Kiểm tra dữ liệu đầu vào
+        required_fields = ['brand', 'model', 'year', 'mileage']
+        if not all(field in data for field in required_fields):
+            return None, "Missing required vehicle data."
+
         new_vehicle = Vehicle(
             user_id=user_id,
-            brand=brand,
-            model=model,
-            year=year,
-            mileage=mileage
+            brand=data['brand'],
+            model=data['model'],
+            year=data['year'],
+            mileage=data['mileage']
         )
         db.session.add(new_vehicle)
         db.session.commit()
-        return {"message": "Vehicle created successfully", "vehicle_id": new_vehicle.vehicle_id}
+        return new_vehicle, "Vehicle created successfully."
 
     @staticmethod
-    def update_vehicle(vehicle_id, new_brand=None, new_model=None, new_year=None, new_mileage=None):
+    def get_vehicle_by_id(vehicle_id):
+        """Lấy thông tin xe bằng ID."""
+        return Vehicle.query.get(vehicle_id)
+
+    @staticmethod
+    def get_vehicles_by_user_id(user_id):
+        """Lấy tất cả xe trong kho của người dùng."""
+        return Vehicle.query.filter_by(user_id=user_id).order_by(Vehicle.vehicle_id.desc()).all()
+
+    @staticmethod
+    def update_vehicle(vehicle_id, user_id, data):
+        """Cập nhật thông tin của một chiếc xe trong kho (yêu cầu quyền sở hữu)."""
         vehicle = Vehicle.query.get(vehicle_id)
-        if not vehicle:
-            return {"error": "Vehicle not exists"}
-        if new_brand is not None:
-            vehicle.brand = new_brand
-        if new_model is not None:
-            vehicle.model = new_model
-        if new_year is not None:
-            vehicle.year = new_year
-        if new_mileage is not None:
-            vehicle.mileage = new_mileage
+        if not vehicle or vehicle.user_id != user_id:
+            return None, "Vehicle not found or you don't have permission to edit it."
+        
+        vehicle.brand = data.get('brand', vehicle.brand)
+        vehicle.model = data.get('model', vehicle.model)
+        vehicle.year = data.get('year', vehicle.year)
+        vehicle.mileage = data.get('mileage', vehicle.mileage)
+        
         db.session.commit()
-        return {"message": "Vehicle updated successfully"}
+        return vehicle, "Vehicle updated successfully."
 
     @staticmethod
-    def delete_vehicle(vehicle_id):
+    def delete_vehicle(vehicle_id, user_id):
+        """Xóa một chiếc xe khỏi kho (chỉ khi nó không đang được đăng bán)."""
         vehicle = Vehicle.query.get(vehicle_id)
-        if not vehicle:
-            return {"error": "Vehicle not exists"}
+        # Kiểm tra quyền sở hữu
+        if not vehicle or vehicle.user_id != user_id:
+            return False, "Vehicle not found or you don't have permission to delete it."
+        
+        # Kiểm tra xem có đang được đăng bán không
+        if vehicle.listing:
+            return False, "Cannot delete a vehicle that is currently listed. Please remove the listing first."
+            
         db.session.delete(vehicle)
         db.session.commit()
-        return {"message": "Vehicle deleted successfully"}
+        return True, "Vehicle deleted successfully."
+    # --- Các hàm liên quan đến Listing ---
+
     @staticmethod
-    def post_to_the_listing(vehicle_id, seller_id, type, title, description, price):
-        vehicle = Vehicle.query.get(vehicle_id)
-        if not vehicle:
-            return {"error": "Vehicle not exists"}
-        seller_id = vehicle.user_id
-        type = 'vehicle'
-        result = ListingService.create_listing(vehicle_id, seller_id, type, title, description, price)
-        if "error" in result:
-            return result["error"]   
-        return result["message"]
+    def post_vehicle_to_listing(user_id, vehicle_id, data):
+        """Đăng bán một chiếc xe đã có trong kho."""
+        from services.listing_service import ListingService
+        listing, message = ListingService.create_listing(
+            seller_id=user_id,
+            listing_type='vehicle',
+            data=data,
+            vehicle_id=vehicle_id
+        )
+        if not listing:  
+            return None, message
+        return listing, "Vehicle listed for sale successfully."
+
     @staticmethod
-    def remove_from_the_list(vehicle_id):
-        vehicle = Vehicle.query.get(vehicle_id)
-        if not vehicle:
-            return {"error": "Vehicle not exists"}
-        listing = ListingService.get_listings_by_vehicle_id(vehicle_id)
-        if "error" in listing:
-            return {"error": "This vehicle is not in any listing"}
-        listing_id = listing.listing_id
-        result = ListingService.delete_listing(listing_id)
-        if "error" in result:
-            return result["error"]
-        return result["message"]
-    
-    @staticmethod
-    def update_listing(vehicle_id, new_title = None, new_description = None, new_price = None, new_status = None):
-        vehicle = Vehicle.query.get(vehicle_id)
-        if not vehicle:
-            return {"error": "Vehicle not exists"}
-        listing = ListingService.get_listings_by_vehicle_id(vehicle_id)
-        if "error" in listing:
-            return {"error": "This vehicle is not in any listing"}
-        listing_id = listing.listing_id
-        result = ListingService.update_listing(listing_id, new_title, new_description, new_price, new_status)
-        if "error" in result:
-            return result["error"]
-        return result["message"]
+    def remove_vehicle_from_listing(user_id, user_role, vehicle_id):
+        """Gỡ một chiếc xe khỏi sàn giao dịch."""
+        from services.listing_service import ListingService
+        listing = ListingService.get_listing_by_vehicle_id(vehicle_id)
+        if not listing:
+            return False, "This vehicle is not currently listed."
+        
+        success, message = ListingService.delete_listing(listing.listing_id, user_id, user_role)
+        return success, message

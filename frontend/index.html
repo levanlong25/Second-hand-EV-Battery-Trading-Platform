@@ -6,37 +6,7 @@
     <title>EV & Battery Trading Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Custom scrollbar for better aesthetics */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-        /* Simple transition for page visibility */
-        .page {
-            display: none;
-            animation: fadeIn 0.5s;
-        }
-        .page.active {
-            display: block;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-gray-100 text-gray-800">
 
@@ -49,12 +19,12 @@
                 </div>
                 <div class="hidden md:block">
                     <div class="ml-10 flex items-baseline space-x-4">
-                        <a href="#" onclick="navigateTo('home')" class="text-gray-600 hover:bg-indigo-600 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Trang Chủ</a>
-                        <a href="#" onclick="navigateTo('listings')" class="text-gray-600 hover:bg-indigo-600 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Mua Xe</a>
+                        <a href="#" onclick="navigateTo('home')" class="nav-link text-gray-600 hover:bg-indigo-600 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Trang Chủ</a>
+                        <a href="#" onclick="navigateTo('listings')" class="nav-link text-gray-600 hover:bg-indigo-600 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Sàn Giao Dịch</a>
                     </div>
                 </div>
                 <div id="nav-auth-links" class="flex items-center">
-                    <!-- This will be updated by JavaScript -->
+                    <!-- Auth links updated by JS -->
                 </div>
             </div>
         </div>
@@ -66,7 +36,7 @@
         <!-- Home Page -->
         <div id="home-page" class="page">
             <div class="text-center p-12 bg-white rounded-lg shadow">
-                <h1 class="text-4xl font-bold text-gray-900">Chào mừng đến với Nền tảng Giao dịch Xe & Pin Điện</h1>
+                <h1 class="text-4xl font-bold text-gray-900">Nền tảng Giao dịch Xe & Pin Điện</h1>
                 <p class="mt-4 text-lg text-gray-600">Nơi tốt nhất để mua và bán xe điện và pin đã qua sử dụng.</p>
                 <button onclick="navigateTo('listings')" class="mt-8 bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Khám Phá Ngay</button>
             </div>
@@ -79,11 +49,12 @@
                 <form id="login-form">
                     <div class="mb-4">
                         <label for="login-email-username" class="block text-sm font-medium text-gray-700">Email hoặc Tên đăng nhập</label>
-                        <input type="text" id="login-email-username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                        <input type="text" id="login-email-username" autocomplete="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                     </div>
                     <div class="mb-6">
                         <label for="login-password" class="block text-sm font-medium text-gray-700">Mật khẩu</label>
-                        <input type="password" id="login-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                        <input type="password" id="login-password" autocomplete="current-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <a href="#" onclick="navigateTo('forget-password')" class="text-indigo-600 hover:underline" style="display: block; text-align: right">Quên mật khẩu?</a>
                     </div>
                     <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">Đăng Nhập</button>
                 </form>
@@ -93,20 +64,20 @@
 
         <!-- Register Page -->
         <div id="register-page" class="page">
-             <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
+            <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
                 <h2 class="text-2xl font-bold text-center mb-6">Đăng Ký Tài Khoản</h2>
                 <form id="register-form">
-                     <div class="mb-4">
+                    <div class="mb-4">
                         <label for="register-username" class="block text-sm font-medium text-gray-700">Tên đăng nhập</label>
-                        <input type="text" id="register-username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                        <input type="text" id="register-username" autocomplete="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
                     </div>
                     <div class="mb-4">
                         <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
-                        <input type="email" id="register-email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                        <input type="email" id="register-email" autocomplete="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
                     </div>
                     <div class="mb-6">
                         <label for="register-password" class="block text-sm font-medium text-gray-700">Mật khẩu</label>
-                        <input type="password" id="register-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                        <input type="password" id="register-password" autocomplete="new-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
                     </div>
                     <button type="submit" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Đăng Ký</button>
                 </form>
@@ -114,227 +85,239 @@
             </div>
         </div>
 
-        <!-- Listings Page -->
+        <!-- Forget Password Page -->
+        <div id="forget-password-page" class="page">
+            <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-bold text-center mb-6">Quên Mật Khẩu</h2>
+                <form id="forget-password-form">
+                    <div class="mb-4">
+                        <label for="forget-email" class="block text-sm font-medium text-gray-700">Email đăng ký</label>
+                        <input type="email" id="forget-email" autocomplete="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">Gửi Mã OTP</button>
+                </form>
+                <form id="reset-password-form" class="mt-6 hidden">
+                    <div class="mb-4">
+                        <label for="otp-code" class="block text-sm font-medium text-gray-700">Mã OTP</label>
+                        <input type="text" id="otp-code" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="new-password" class="block text-sm font-medium text-gray-700">Mật khẩu mới</label>
+                        <input type="password" id="new-password" autocomplete="new-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Đặt Lại Mật Khẩu</button>
+                </form>
+                <p class="text-center mt-4 text-sm"><a href="#" onclick="navigateTo('login')" class="text-indigo-600 hover:underline">Quay lại Đăng nhập</a></p>
+            </div>
+        </div>
+
+        <!-- Listings Page (Public) -->
         <div id="listings-page" class="page">
-            <h2 class="text-3xl font-bold mb-6">Danh Sách Xe & Pin Điện</h2>
-            <!-- TODO: Add search and filter controls here -->
+            <h2 class="text-3xl font-bold mb-6">Sàn Giao Dịch</h2>
             <div id="listings-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Listing items will be injected here by JavaScript -->
-                 <div class="bg-gray-200 p-6 rounded-lg text-center">
-                    <p class="text-gray-600">Tính năng đang được phát triển. Dữ liệu mẫu sẽ sớm được hiển thị.</p>
+                <!-- Listings will be injected here -->
+            </div>
+        </div>
+
+        <!-- Profile & My Assets Page -->
+        <div id="profile-page" class="page">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Profile Info Column -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-2xl font-bold mb-4">Hồ Sơ Của Tôi</h2>
+                        <div id="profile-details" class="space-y-2 mb-6">
+                            <!-- Profile details will be loaded here -->
+                        </div>
+                        <h3 class="text-xl font-semibold mb-4 border-t pt-4">Cập nhật thông tin</h3>
+                        <form id="profile-update-form"> 
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="profile-fullname" class="block text-sm font-medium text-gray-700">Họ và Tên</label>
+                                    <input type="text" id="profile-fullname" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                </div>
+                                <div>
+                                    <label for="profile-phone" class="block text-sm font-medium text-gray-700">Số điện thoại</label>
+                                    <input type="text" id="profile-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                </div>
+                                <div>
+                                    <label for="profile-address" class="block text-sm font-medium text-gray-700">Địa chỉ</label>
+                                    <input type="text" id="profile-address" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full mt-6 bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">Lưu Thay Đổi</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- My Assets Column -->
+                <div class="lg:col-span-2">
+                    <!-- My Vehicles Section -->
+                    <div class="bg-white p-6 rounded-lg shadow-lg mb-8">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-2xl font-bold">Kho Xe Của Tôi</h2>
+                            <button onclick="openModal('vehicle-modal')" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600">Thêm Xe Mới</button>
+                        </div>
+                        <div id="my-vehicles-container" class="space-y-4">
+                            <!-- Vehicle items will be injected here -->
+                        </div>
+                    </div>
+                    <!-- My Batteries Section -->
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-2xl font-bold">Kho Pin Của Tôi</h2>
+                            <button onclick="openModal('battery-modal')" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600">Thêm Pin Mới</button>
+                        </div>
+                        <div id="my-batteries-container" class="space-y-4">
+                            <!-- Battery items will be injected here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Profile Page -->
-        <div id="profile-page" class="page">
-             <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-lg">
-                <h2 class="text-2xl font-bold mb-6">Hồ Sơ Của Tôi</h2>
-                <div id="profile-details">
-                    <!-- Profile details will be loaded here -->
-                </div>
-                 <form id="profile-update-form" class="mt-6">
-                    <h3 class="text-xl font-semibold mb-4">Cập nhật thông tin</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label for="profile-fullname" class="block text-sm font-medium text-gray-700">Họ và Tên</labe>
-                            <input type="text" id="profile-fullname" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
-                        </div>
-                         <div>
-                            <label for="profile-phone" class="block text-sm font-medium text-gray-700">Số điện thoại</labe>
-                            <input type="text" id="profile-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
-                        </div>
-                    </div>
-                     <div class="mt-4">
-                        <label for="profile-address" class="block text-sm font-medium text-gray-700">Địa chỉ</labe>
-                        <input type="text" id="profile-address" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
-                    </div>
-                    <div class="mt-4">
-                        <label for="profile-bio" class="block text-sm font-medium text-gray-700">Giới thiệu</labe>
-                        <textarea id="profile-bio" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></textarea>
-                    </div>
-                     <div class="mt-6">
-                        <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">Lưu Thay Đổi</button>
-                    </div>
-                </form>
-             </div>
-        </div>
-        
-        <!-- Loading Spinner -->
-        <div id="loading-spinner" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
-            <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
-        </div>
-
     </main>
+    
+    <!-- Modals for Add/Edit/List -->
+    <!-- Vehicle Modal -->
+    <div id="vehicle-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+            <h3 id="vehicle-modal-title" class="text-xl font-bold mb-4">Thêm Xe Mới</h3>
+            <form id="vehicle-form">
+                <input type="hidden" id="vehicle-id">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="vehicle-brand" class="block text-sm font-medium">Hãng xe</label>
+                        <input type="text" id="vehicle-brand" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="vehicle-model" class="block text-sm font-medium">Dòng xe</label>
+                        <input type="text" id="vehicle-model" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="vehicle-year" class="block text-sm font-medium">Năm sản xuất</label>
+                        <input type="number" id="vehicle-year" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="vehicle-mileage" class="block text-sm font-medium">Số KM đã đi</label>
+                        <input type="number" id="vehicle-mileage" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('vehicle-modal')" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Hủy</button>
+                    <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Battery Modal -->
+    <div id="battery-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+            <h3 id="battery-modal-title" class="text-xl font-bold mb-4">Thêm Pin Mới</h3>
+            <form id="battery-form">
+                 <input type="hidden" id="battery-id">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="battery-manufacturer" class="block text-sm font-medium">Nhà sản xuất</label>
+                        <input type="text" id="battery-manufacturer" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="battery-capacity" class="block text-sm font-medium">Dung lượng (kWh)</label>
+                        <input type="number" step="0.1" id="battery-capacity" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="battery-health" class="block text-sm font-medium">Tình trạng pin (%)</label>
+                        <input type="number" id="battery-health" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('battery-modal')" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Hủy</button>
+                    <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    <script>
-        const apiBaseUrl = 'http://localhost:5000/api'; // << IMPORTANT: Change this to your API Gateway URL
-        const appContainer = document.getElementById('app-container');
-        const navAuthLinks = document.getElementById('nav-auth-links');
-        const loadingSpinner = document.getElementById('loading-spinner');
+    <!-- Listing Modal -->
+    <div id="listing-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+            <h3 class="text-xl font-bold mb-4">Đăng Bán Sản Phẩm</h3>
+            <form id="listing-form">
+                <input type="hidden" id="listing-item-id">
+                <input type="hidden" id="listing-item-type">
+                <div class="space-y-4">
+                    <div>
+                        <label for="listing-title" class="block text-sm font-medium">Tiêu đề tin đăng</label>
+                        <input type="text" id="listing-title" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                     <div>
+                        <label for="listing-price" class="block text-sm font-medium">Giá bán (VNĐ)</label>
+                        <input type="number" id="listing-price" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="listing-description" class="block text-sm font-medium">Mô tả chi tiết</label>
+                        <textarea id="listing-description" rows="4" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required></textarea>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeModal('listing-modal')" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Hủy</button>
+                    <button type="submit" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Đăng Bán</button>
+                </div>
+            </form>
+        </div>
+    </div> 
 
-        // --- UTILS ---
-        const showLoading = () => loadingSpinner.classList.remove('hidden');
-        const hideLoading = () => loadingSpinner.classList.add('hidden');
-        
-        const showToast = (message, isError = false) => {
-            const toast = document.createElement('div');
-            toast.textContent = message;
-            toast.className = `fixed bottom-5 right-5 p-4 rounded-lg shadow-lg text-white ${isError ? 'bg-red-500' : 'bg-green-500'}`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        };
+    <!-- Detail Modal -->
+    <div id="detail-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto relative"> 
+            <button type="button" onclick="closeModal('detail-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            
+            <div id="detail-modal-content">
 
-        // --- ROUTING ---
-        function navigateTo(pageId) {
-            document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
-            const targetPage = document.getElementById(`${pageId}-page`);
-            if (targetPage) {
-                targetPage.classList.add('active');
-            } else {
-                 document.getElementById('home-page').classList.add('active');
-            }
-             // Load data for specific pages
-            if (pageId === 'profile') {
-                loadProfile();
-            }
-        }
+                <div class="animate-pulse">
+                    <div class="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
+                    <div class="h-64 bg-gray-200 rounded w-full mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+                    <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+                </div>
+            </div>
+            <div class="flex justify-between mt-4 border-t pt-4" id="button_div">       
+                <button type="button" onclick="closeModal('detail-modal')" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Đóng</button>
+            </div>
+        </div>
+    </div>
+    <!-- Popup Upload Ảnh -->
+    <div id="upload-modal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-96 shadow-lg relative">
+        <button type="button" onclick="closeAdd('upload-modal')" 
+                class="absolute top-3 right-3 text-gray-400 hover:text-gray-600">
+        ✖
+        </button> 
+        <h2 class="text-lg font-semibold mb-4 text-gray-700">Tải ảnh lên</h2>
 
-        // --- AUTHENTICATION ---
-        function updateNav() {
-            const token = localStorage.getItem('jwt_token');
-            if (token) {
-                navAuthLinks.innerHTML = `
-                    <a href="#" onclick="navigateTo('profile')" class="text-gray-600 hover:bg-indigo-600 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Hồ Sơ</a>
-                    <a href="#" onclick="logout()" class="ml-4 bg-red-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-600">Đăng Xuất</a>
-                `;
-            } else {
-                navAuthLinks.innerHTML = `
-                    <a href="#" onclick="navigateTo('login')" class="text-gray-600 hover:bg-indigo-600 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Đăng Nhập</a>
-                    <a href="#" onclick="navigateTo('register')" class="ml-4 bg-green-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-600">Đăng Ký</a>
-                `;
-            }
-        }
+        <input type="file" id="upload-image-input" accept="image/*" 
+            class="border border-gray-300 rounded w-full p-2 mb-4">
 
-        function logout() {
-            localStorage.removeItem('jwt_token');
-            showToast('Bạn đã đăng xuất thành công.');
-            updateNav();
-            navigateTo('login');
-        }
-        
-        async function apiRequest(endpoint, method = 'GET', body = null) {
-            showLoading();
-            try {
-                const headers = { 'Content-Type': 'application/json' };
-                const token = localStorage.getItem('jwt_token');
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
-
-                const options = {
-                    method,
-                    headers,
-                };
-                if (body) {
-                    options.body = JSON.stringify(body);
-                }
-
-                const response = await fetch(`${apiBaseUrl}${endpoint}`, options);
-                
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-                }
-
-                // Handle responses that might not have a body (e.g., DELETE)
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.indexOf("application/json") !== -1) {
-                    return await response.json();
-                } else {
-                    return { success: true };
-                }
-            } catch (error) {
-                console.error('API Request Error:', error);
-                showToast(error.message, true);
-                return null;
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // --- PAGE-SPECIFIC LOGIC ---
-        async function loadProfile() {
-            const data = await apiRequest('/profile');
-            if (data) {
-                document.getElementById('profile-fullname').value = data.full_name || '';
-                document.getElementById('profile-phone').value = data.phone_number || '';
-                document.getElementById('profile-address').value = data.address || '';
-                document.getElementById('profile-bio').value = data.bio || '';
-
-                const detailsDiv = document.getElementById('profile-details');
-                detailsDiv.innerHTML = `
-                    <p><strong>Họ và tên:</strong> ${data.full_name || 'Chưa cập nhật'}</p>
-                    <p><strong>Điện thoại:</strong> ${data.phone_number || 'Chưa cập nhật'}</p>
-                    <p><strong>Địa chỉ:</strong> ${data.address || 'Chưa cập nhật'}</p>
-                `;
-            }
-        }
+        <div class="flex justify-end space-x-2">
+        <button onclick="closeAdd('upload-modal')" 
+                class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">Hủy</button>
+        <button onclick="confirmUpload()" 
+                class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">Tải lên</button>
+        </div>
+    </div>
+    </div>
 
 
-        // --- EVENT LISTENERS ---
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email_username = document.getElementById('login-email-username').value;
-            const password = document.getElementById('login-password').value;
-            const data = await apiRequest('/login', 'POST', { email_username, password });
-            if (data && data.access_token) {
-                localStorage.setItem('jwt_token', data.access_token);
-                showToast('Đăng nhập thành công!');
-                updateNav();
-                navigateTo('profile');
-            }
-        });
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
+    </div>
 
-        document.getElementById('register-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('register-username').value;
-            const email = document.getElementById('register-email').value;
-            const password = document.getElementById('register-password').value;
-            const data = await apiRequest('/register', 'POST', { username, email, password });
-            if (data) {
-                showToast(data.message || 'Đăng ký thành công! Vui lòng đăng nhập.');
-                navigateTo('login');
-            }
-        });
-        
-        document.getElementById('profile-update-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const body = {
-                full_name: document.getElementById('profile-fullname').value,
-                phone_number: document.getElementById('profile-phone').value,
-                address: document.getElementById('profile-address').value,
-                bio: document.getElementById('profile-bio').value
-            };
-            const data = await apiRequest('/profile', 'PUT', body);
-            if(data) {
-                showToast('Cập nhật hồ sơ thành công!');
-                loadProfile(); // Refresh profile data on page
-            }
-        });
-
-        // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', () => {
-            updateNav();
-            // Check if user is logged in to redirect
-            const token = localStorage.getItem('jwt_token');
-            if(token) {
-                 navigateTo('profile');
-            } else {
-                 navigateTo('home');
-            }
-        });
-
-    </script>
+    <script src="scripts.js"></script>
 </body>
 </html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - EV Trade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      .dashboard-section {
+        display: none;
+      }
+      .dashboard-section.active {
+        display: block;
+        animation: fadeIn 0.5s;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100">
+    <!-- Login Page for Admin -->
+    <div
+      id="admin-login-page"
+      class="flex items-center justify-center h-screen"
+    >
+      <div class="w-full max-w-md bg-white p-8 rounded-lg shadow-lg">
+        <h2 class="text-2xl font-bold text-center mb-6">Admin Login</h2>
+        <form id="admin-login-form">
+          <div class="mb-4">
+            <label
+              for="admin-email"
+              class="block text-sm font-medium text-gray-700"
+              >Email hoặc Username</label
+            >
+            <input
+              type="text"
+              id="admin-email"
+              autocomplete="username"
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              required
+            />
+          </div>
+          <div class="mb-6">
+            <label
+              for="admin-password"
+              class="block text-sm font-medium text-gray-700"
+              >Mật khẩu</label
+            >
+            <input
+              type="password"
+              id="admin-password"
+              autocomplete="current-password"
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700"
+          >
+            Đăng Nhập
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main Dashboard (Hidden by default) -->
+    <div id="dashboard" class="hidden">
+      <header class="bg-white shadow">
+        <div
+          class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center"
+        >
+          <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+          <button
+            onclick="adminLogout()"
+            class="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600"
+          >
+            Đăng Xuất
+          </button>
+        </div>
+      </header>
+
+      <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <!-- Navigation Tabs -->
+        <div class="mb-6 border-b border-gray-200">
+          <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+            <a
+              href="#"
+              onclick="showSection('users-section')"
+              class="tab-link whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-indigo-500 text-indigo-600"
+              >Quản lý Người Dùng</a
+            >
+            <a
+              href="#"
+              onclick="showSection('listings-section')"
+              class="tab-link whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              >Quản lý Tin Đăng</a
+            >
+          </nav>
+        </div>
+
+        <!-- User Management Section -->
+        <div id="users-section" class="dashboard-section">
+          <h2 class="text-xl font-semibold mb-4">Danh sách người dùng</h2>
+          <div class="bg-white shadow rounded-lg overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    ID
+                  </th>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Username
+                  </th>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Email
+                  </th>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Role
+                  </th>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    Status
+                  </th>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="text-align: center;"
+                  >
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody
+                id="users-table-body"
+                class="bg-white divide-y divide-gray-200"
+              >
+                <!-- User rows will be injected here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Listing Management Section -->
+        <div id="listings-section" class="dashboard-section">
+          <h2 class="text-xl font-semibold mb-4">Tin đăng chờ duyệt</h2>
+          <div id="pending-listings-container" class="space-y-4 mb-8">
+            <!-- Pending listings will be injected here -->
+          </div>
+
+          <h2 class="text-xl font-semibold mb-4 border-t pt-4">
+            Tất cả tin đăng
+          </h2>
+          <div id="all-listings-container" class="space-y-4">
+            <!-- All listings will be injected here -->
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="admin_scripts.js"></script>
+  </body>
+</html>
