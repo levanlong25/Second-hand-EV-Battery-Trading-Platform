@@ -1,0 +1,350 @@
+const apiBaseUrl = "http://localhost";
+
+// --- DOM ELEMENTS ---
+const navAuthLinks = document.getElementById("nav-auth-links");
+const loadingSpinner = document.getElementById("loading-spinner");
+
+// --- UTILS ---
+const showLoading = () => loadingSpinner.classList.remove("hidden");
+const hideLoading = () => loadingSpinner.classList.add("hidden");
+
+const showToast = (message, isError = false) => {
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  toast.className = `fixed bottom-5 right-5 p-4 rounded-lg shadow-lg text-white ${
+    isError ? "bg-red-500" : "bg-green-500"
+  } z-50`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+};
+
+function closeAdd(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+const openModal = (modalId, data = {}) => {
+    const modal = document.getElementById(modalId);
+    if (!modal) {
+        console.error(`Modal with id "${modalId}" not found.`);
+        return;
+    }
+    const form = modal.querySelector('form'); 
+    if (form) {
+        form.reset(); 
+        if (modalId === "vehicle-modal") {
+            document.getElementById("vehicle-modal-title").textContent = data.vehicle_id
+                ? "Sửa thông tin Xe"
+                : "Thêm Xe Mới";
+            document.getElementById("vehicle-id").value = data.vehicle_id || "";
+            document.getElementById("vehicle-brand").value = data.brand || "";
+            document.getElementById("vehicle-model").value = data.model || "";
+            document.getElementById("vehicle-year").value = data.year || "";
+            document.getElementById("vehicle-mileage").value = data.mileage || "";
+        } else if (modalId === "battery-modal") {
+            document.getElementById("battery-modal-title").textContent = data.battery_id
+                ? "Sửa thông tin Pin"
+                : "Thêm Pin Mới";
+            document.getElementById("battery-id").value = data.battery_id || "";
+            document.getElementById("battery-manufacturer").value =
+            data.manufacturer || "";
+            document.getElementById("battery-capacity").value = data.capacity_kwh || "";
+            document.getElementById("battery-health").value = data.health_percent || "";
+        } else if (modalId === "listing-modal") {
+            document.getElementById("listing-item-id").value = data.id || "";
+            document.getElementById("listing-item-type").value = data.type || "";
+        }
+    }
+    
+    modal.classList.add("active");
+};
+const closeModal = (modalId) =>
+  document.getElementById(modalId).classList.remove("active");
+
+// --- ROUTING ---
+function navigateTo(pageId) {
+  document
+    .querySelectorAll(".page")
+    .forEach((page) => page.classList.remove("active"));
+  const targetPage = document.getElementById(`${pageId}-page`);
+  if (targetPage) {
+    targetPage.classList.add("active");
+  } else {
+    document.getElementById("home-page").classList.add("active");
+  }
+  if (pageId === "profile") {
+    loadProfile();
+    loadMyAssets();
+  }
+  if (pageId === "watchlist"){
+    loadMyWatchlist();
+  }
+  if (pageId === "listings") {
+    loadPublicListings();
+  }
+}
+
+// --- AUTHENTICATION & API ---
+function updateNav() {
+  const token = localStorage.getItem("jwt_token");
+  if (token) {
+    navAuthLinks.innerHTML = `
+                    <a href="#" onclick="navigateTo('profile')" class="nav-link text-gray-600 hover:bg-indigo-600 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Hồ Sơ & Kho</a>
+                    <a href="#" onclick="logout()" class="ml-4 bg-red-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-red-600">Đăng Xuất</a>
+                `;
+  } else {
+    navAuthLinks.innerHTML = `
+                    <a href="#" onclick="navigateTo('login')" class="nav-link text-gray-600 hover:bg-indigo-600 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Đăng Nhập</a>
+                    <a href="#" onclick="navigateTo('register')" class="ml-4 bg-green-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-600">Đăng Ký</a>
+                `;
+  }
+}
+
+function logout() {
+  localStorage.removeItem("jwt_token");
+  showToast("Bạn đã đăng xuất thành công.");
+  updateNav();
+  navigateTo("login");
+}
+
+async function apiRequest(endpoint, method = "GET", body = null) {
+  showLoading();
+  try {
+    const headers = { "Content-Type": "application/json" };
+    const token = localStorage.getItem("jwt_token");
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const options = { method, headers };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(`${apiBaseUrl}${endpoint}`, options);
+
+    const responseData = await response
+      .json()
+      .catch(() => ({ message: "Operation successful" }));
+
+    if (!response.ok) {
+      throw new Error(
+        responseData.error ||
+          responseData.msg ||
+          `HTTP error! status: ${response.status}`
+      );
+    }
+    return responseData;
+  } catch (error) {
+    console.error("API Request Error:", error);
+    showToast(error.message, true);
+    throw error; // Re-throw the error to be caught by the caller
+  } finally {
+    hideLoading();
+  }
+}
+/**
+ * Hiển thị hoặc ẩn form cập nhật thông tin cá nhân.
+ * @param {boolean} [forceShow] - Nếu là true, form sẽ hiện ra. Nếu false, form sẽ ẩn đi.
+ * Nếu để trống, hàm sẽ tự động đảo ngược trạng thái.
+ */
+function toggleProfileForm(forceShow) {
+    const form = document.getElementById('profile-update-form');
+    const buttonContainer = document.getElementById('update-profile-button-container');
+
+    if (!form || !buttonContainer) return;
+
+    const isHidden = form.classList.contains('hidden');
+
+    if (forceShow === true) {
+        // Bắt buộc hiện form
+        form.classList.remove('hidden');
+        buttonContainer.classList.add('hidden');
+    } else if (forceShow === false) {
+        // Bắt buộc ẩn form
+        form.classList.add('hidden');
+        buttonContainer.classList.remove('hidden');
+    } else {
+        // Tự động đảo ngược
+        form.classList.toggle('hidden');
+        buttonContainer.classList.toggle('hidden');
+    }
+}
+
+// Hàm loadProfile của bạn giữ nguyên, nó đã hoạt động đúng.
+async function loadProfile() {
+  try {
+    const data = await apiRequest("/user/api/profile");
+    if (data) {
+      // Hiển thị thông tin
+      const detailsDiv = document.getElementById("profile-details");
+      detailsDiv.innerHTML = `
+                      <p><strong>Họ và tên:</strong> ${
+                        data.full_name || "Chưa cập nhật"
+                      }</p>
+                      <p><strong>Điện thoại:</strong> ${
+                        data.phone_number || "Chưa cập nhật"
+                      }</p>
+                      <p><strong>Địa chỉ:</strong> ${
+                        data.address || "Chưa cập nhật"
+                      }</p>
+                  `;
+
+      // Điền vào form cập nhật
+      document.getElementById("profile-fullname").value = data.full_name || "";
+      document.getElementById("profile-phone").value = data.phone_number || "";
+      document.getElementById("profile-address").value = data.address || "";
+
+      // Đảm bảo form được ẩn khi tải trang
+      toggleProfileForm(false);
+    }
+  } catch (error) {
+    console.error("Failed to load profile:", error);
+  }
+}
+async function loadMyAssets() {
+  loadMyVehicles();
+  loadMyBatteries();
+}
+
+function renderStatusBadge(status) {
+  if (!status) return "";
+
+  const statusMap = {
+    pending: { text: "Chờ duyệt", color: "bg-yellow-100 text-yellow-800" },
+    available: { text: "Đang bán", color: "bg-green-100 text-green-800" },
+    rejected: { text: "Bị từ chối", color: "bg-red-100 text-red-800" },
+    sold: { text: "Đã bán", color: "bg-gray-100 text-gray-800" },
+  };
+
+  const statusInfo = statusMap[status] || {
+    text: status,
+    color: "bg-gray-100 text-gray-800",
+  };
+
+  return `<span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusInfo.color}">${statusInfo.text}</span>`;
+}
+
+function openListingModal(type, id) {
+  openModal("listing-modal", { type, id });
+}
+
+// --- EVENT LISTENERS ---
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email_username = document.getElementById("login-email-username").value;
+  const password = document.getElementById("login-password").value;
+  try {
+    const data = await apiRequest("/user/api/login", "POST", {
+      email_username,
+      password,
+    });
+    if (data && data.access_token) {
+      localStorage.setItem("jwt_token", data.access_token);
+      showToast("Đăng nhập thành công!");
+      updateNav();
+      navigateTo("profile");
+    }
+    else { showToast("Đăng nhập thất bại. Vui lòng thử lại.", true); }
+  } catch (error) {
+
+  }
+});
+
+document
+  .getElementById("register-form")
+  .addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("register-username").value;
+    const email = document.getElementById("register-email").value;
+    const password = document.getElementById("register-password").value;
+    try {
+      const data = await apiRequest("/user/api/register", "POST", {
+        username,
+        email,
+        password,
+      });
+      if (data) {
+        showToast(data.message || "Đăng ký thành công! Vui lòng đăng nhập.");
+        navigateTo("login");
+      }
+    } catch (error) {}
+  });
+
+// Xử lý form gửi email để nhận OTP
+document.getElementById("forget-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("forget-email").value;
+    try {
+        const data = await apiRequest("/user/api/send-otp", "POST", { email });
+        if (data) {
+            showToast(data.message || "OTP đã được gửi đến email của bạn.");
+            // Ẩn form gửi email và hiện form đặt lại mật khẩu
+            document.getElementById("forget-password-form").classList.add("hidden");
+            document.getElementById("reset-password-form").classList.remove("hidden");
+        }
+    } catch (error) {}
+});
+ 
+// Xử lý form đặt lại mật khẩu bằng OTP
+document.getElementById("reset-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("forget-email").value; // Lấy lại email đã nhập
+    const otp = document.getElementById("otp-code").value;
+    const new_password = document.getElementById("new-password").value;
+    try {
+        const data = await apiRequest("/user/api/reset-password", "POST", {
+            email,
+            otp,
+            new_password,
+        });
+        if (data) {
+            showToast(data.message || "Mật khẩu đã được đặt lại thành công!");
+            navigateTo("login"); // Chuyển về trang đăng nhập
+        }
+    } catch (error) {}
+});
+
+document
+  .getElementById("profile-update-form")
+  .addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = {
+      full_name: document.getElementById("profile-fullname").value,
+      phone_number: document.getElementById("profile-phone").value,
+      address: document.getElementById("profile-address").value,
+    };
+    try {
+      await apiRequest("/user/api/profile", "PUT", body);
+      showToast("Cập nhật hồ sơ thành công!");
+      loadProfile();
+    } catch (error) {}
+  });
+
+// --- INITIALIZATION ---
+document.addEventListener("DOMContentLoaded", () => {
+  updateNav();
+  const token = localStorage.getItem("jwt_token");
+
+  if (token) {
+    try {
+      // Giải mã phần payload của JWT (phần ở giữa)
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const currentTime = Math.floor(Date.now() / 1000); // giây hiện tại
+
+      // Nếu token hết hạn
+      if (payload.exp && payload.exp < currentTime) {
+        console.warn("Token has expired");
+        localStorage.removeItem("jwt_token"); // xóa token cũ
+        navigateTo("home"); // quay về trang home
+      } else {
+        navigateTo("profile"); // token còn hạn → vào profile
+      }
+    } catch (e) {
+      console.error("Invalid token format", e);
+      localStorage.removeItem("jwt_token");
+      navigateTo("home");
+    }
+  } else {
+    navigateTo("home");
+  }
+});
+

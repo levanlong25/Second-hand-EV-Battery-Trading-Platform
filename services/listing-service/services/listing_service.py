@@ -140,7 +140,9 @@ class ListingService:
     # --- WATCHLIST FUNCTIONS ---
     @staticmethod
     def add_to_watchlist(user_id, listing_id):
-        if not Listing.query.get(listing_id): return None, "Listing not found."
+        listing = Listing.query.get(listing_id)
+        if not listing: return None, "Listing not found."
+        if user_id == listing.seller_id: return None, "You sell this listing."
         if WatchList.query.filter_by(user_id=user_id, listing_id=listing_id).first():
             return None, "Listing is already in your watchlist."
         
@@ -150,19 +152,23 @@ class ListingService:
         return new_entry, "Added to watchlist."
 
     @staticmethod
-    def remove_from_watchlist(user_id, listing_id):
-        entry = WatchList.query.filter_by(user_id=user_id, listing_id=listing_id).first()
+    def remove_from_watchlist(watchlist_id):
+        entry = WatchList.query.get(watchlist_id)
         if not entry: return False, "Entry not found in your watchlist."
         
         db.session.delete(entry)
         db.session.commit()
         return True, "Removed from watchlist."
-    
-    @staticmethod
-    def get_user_watchlist(user_id):
-        """Lấy danh sách watchlist của người dùng."""
-        return WatchList.query.filter_by(user_id=user_id).all()
 
+    @staticmethod
+    def get_watchlist_by_id(watchlist_id):
+        return WatchList.query.get(watchlist_id)
+    @staticmethod
+    def get_watchlist(user_id):
+        return [
+            ListingService.get_listing_by_id(item.listing_id)
+            for item in WatchList.query.filter_by(user_id=user_id).all()
+        ]
     # --- REPORT FUNCTIONS ---
     @staticmethod
     def create_report(reporter_id, listing_id, report_type, description):

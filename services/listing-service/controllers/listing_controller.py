@@ -3,8 +3,10 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from services.listing_service import ListingService
 from services.vehicle_service import VehicleService
 from services.battery_service import BatteryService
+from services.comparison_service import ComparisonService
 from models.listing_image import ListingImage
 from models.listing import Listing
+from models.watchlist import WatchList
 from werkzeug.utils import secure_filename
 from functools import wraps
 from app import db
@@ -292,6 +294,46 @@ def remove_my_vehicle_from_sale(vehicle_id):
     if not success: return jsonify({"error": message}), 404
     return jsonify({"message": message}), 200
 
+# ============================================
+# === API watch list ===
+# ============================================
+@api_bp.route("/watch-list", methods=['POST'])
+@jwt_required()
+def add_to_watchlist():
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+    listing_id = data.get("listing_id")
+    watchlist, message = ListingService.add_to_watchlist(current_user_id, listing_id)
+    if not watchlist:
+        return jsonify({"error": message}), 400
+    return jsonify({"message": message}), 200
+
+@api_bp.route("/watch-list", methods = ['GET'])
+@jwt_required()
+def my_watchlist():
+    current_user_id = int(get_jwt_identity())
+    watchlists = ListingService.get_watchlist(current_user_id)
+    return jsonify([serialize_listing(w) for w in watchlists]), 200
+
+@api_bp.route("/watch-list/by-listing/<int:listing_id>", methods=['DELETE'])
+@jwt_required()
+def delete_watchlist_by_listing(listing_id):
+    current_user_id = int(get_jwt_identity())     
+    watchlist_item = WatchList.query.filter_by(
+        user_id=current_user_id, 
+        listing_id=listing_id
+    ).first()
+    
+    if not watchlist_item: 
+        return jsonify({"message": "Tin đăng này không có trong danh sách theo dõi."}), 404
+    success, message = ListingService.remove_from_watchlist(watchlist_item.watchlist_id)
+    if not success:
+         return jsonify({"message": message}), 400 
+    return jsonify({"message": "Đã xóa khỏi danh sách theo dõi"}), 200
+# ============================================
+# === API report ===
+# ============================================
+
 
 # ============================================
 # === CÁC API CÔNG KHAI (PUBLIC) ===
@@ -322,6 +364,38 @@ def get_battery_details(battery_id):
     listing = ListingService.get_listing_by_battery_id(battery_id)
     if not listing: return jsonify({"error": "Listing not found"}), 404
     return jsonify(serialize_listing(listing)), 200
+
+# ============================================
+# === API ===
+# ============================================
+
+@api_bp.route('/compare', methods=['GET'])
+def compare_listings(): 
+    listing_ids = request.args.getlist('id', type=int)
+
+    if not listing_ids:
+        return jsonify({"error": "No 'id' parameters provided."}), 400
+    
+    if len(listing_ids) < 2:
+         return jsonify({"error": "At least two IDs are required to compare."}), 400
+    
+    if len(listing_ids) > 5: 
+         return jsonify({"error": "Cannot compare more than 5 items at a time."}), 400
+ 
+    comparison_type, data, message = ComparisonService.get_comparison_data(listing_ids)
+
+    if not comparison_type: 
+        return jsonify({"error": message}), 404
+     
+    return jsonify({
+        "message": message,
+        "comparison_type": comparison_type,
+        "items": data
+    }), 200
+
+# ============================================
+# === API ===
+# ============================================
 
 @api_bp.route('/listings/<int:listing_id>', methods=['PUT'])
 @jwt_required()
