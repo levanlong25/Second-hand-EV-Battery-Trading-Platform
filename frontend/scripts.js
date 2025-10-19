@@ -732,3 +732,162 @@ async function viewBatteryDetail(battery_id) {
     modalContent.innerHTML = '<p class="text-red-500">Đã xảy ra lỗi khi tải dữ liệu.</p>';
   }
 }
+
+document
+  .getElementById("vehicle-form")
+  .addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("vehicle-id").value;
+    const body = {
+      brand: document.getElementById("vehicle-brand").value,
+      model: document.getElementById("vehicle-model").value,
+      year: parseInt(document.getElementById("vehicle-year").value),
+      mileage: parseInt(document.getElementById("vehicle-mileage").value),
+    };
+
+    const method = id ? "PUT" : "POST";
+    const endpoint = id
+      ? `/listing/api/my-assets/vehicles/${id}`
+      : "/listing/api/my-assets/vehicles";
+
+    try {
+      await apiRequest(endpoint, method, body);
+      showToast(id ? "Cập nhật xe thành công." : "Thêm xe mới thành công.");
+      closeModal("vehicle-modal");
+      loadMyVehicles();
+    } catch (error) {}
+  });
+
+
+async function deleteVehicle(id) {
+  if (confirm("Bạn có chắc chắn muốn xóa xe này khỏi kho?")) {
+    try {
+      await apiRequest(`/listing/api/my-assets/vehicles/${id}`, "DELETE");
+      showToast("Xóa xe thành công.");
+      loadMyVehicles();
+    } catch (error) {}
+  }
+}
+
+
+async function unlistVehicle(id) {
+  if (confirm("Bạn có chắc chắn muốn gỡ bán xe này?")) {
+    try {
+      await apiRequest(`/listing/api/my-assets/vehicles/${id}/list`, "DELETE");
+      showToast("Gỡ bán xe thành công.");
+      loadMyVehicles();
+    } catch (error) {}
+  }
+}
+
+
+let allMyVehicles = [];
+
+/**
+ * Hàm render danh sách xe ra container.
+ * @param {boolean} showAll - Nếu true, hiển thị tất cả xe. Nếu false, chỉ hiển thị 2 xe đầu tiên.
+ */
+function renderMyVehicles(showAll = false) {
+    const container = document.getElementById("my-vehicles-container");
+    if (!container) return;
+
+    // Xử lý trường hợp không có xe
+    if (!allMyVehicles || allMyVehicles.length === 0) {
+        container.innerHTML = `<p class="text-gray-500">Bạn chưa có xe nào trong kho.</p>`;
+        return;
+    }
+
+    // Xác định danh sách xe cần hiển thị
+    const vehiclesToDisplay = showAll ? allMyVehicles : allMyVehicles.slice(0, 2);
+
+    // Tạo HTML cho các mục xe
+    let contentHTML = vehiclesToDisplay.map(v => `
+        <div class="border rounded-lg p-4 flex justify-between items-center bg-white">
+            <div>
+                <p class="font-bold flex items-center">
+                    Hãng xe: ${v.brand} (${v.year})
+                    ${v.is_listed ? renderStatusBadge(v.listing_status) : ""}
+                </p>
+                <p class="text-sm text-gray-600">
+                    ${
+                      v.is_listed
+                        ? `<button onclick="viewVehicleDetail('${v.vehicle_id}')" class="bg-indigo-000 text-gray-400 text-[0.6rem] rounded hover:bg-indigo-100">Xem Chi Tiết</button>`
+                        : `<p class="text-sm text-gray-600">Dòng xe: ${v.model} | Số KM: ${v.mileage.toLocaleString()}</p>`
+                    }
+                </p>
+            </div>
+            <div class="space-x-2">
+                ${
+                  v.is_listed
+                    ? `<button onclick="unlistVehicle(${v.vehicle_id})" class="bg-yellow-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-yellow-600">Gỡ Bán</button>`
+                    : `<button onclick="openListingModal('vehicle', ${v.vehicle_id})" class="bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-blue-600">Đăng Bán</button>`
+                }
+                <button onclick='openModal("vehicle-modal", ${JSON.stringify(v)})' class="bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-gray-600">Sửa</button>
+                <button onclick="deleteVehicle(${v.vehicle_id})" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Xóa</button>
+            </div>
+        </div>
+    `).join("");
+
+    // Thêm nút "Hiển thị toàn bộ" hoặc "Ẩn bớt" nếu cần
+    if (allMyVehicles.length > 2) {
+        if (showAll) {
+            contentHTML += `
+                <div class="text-center mt-4">
+                    <button onclick="renderMyVehicles(false)" class="text-blue-600 hover:underline font-semibold">Ẩn bớt</button>
+                </div>`;
+        } else {
+            contentHTML += `
+                <div class="text-center mt-4">
+                    <button onclick="renderMyVehicles(true)" class="text-blue-600 hover:underline font-semibold">Hiển thị toàn bộ (${allMyVehicles.length})</button>
+                </div>`;
+        }
+    }
+
+    container.innerHTML = contentHTML;
+} 
+async function loadMyVehicles() {
+    try {
+        const vehicles = await apiRequest("/listing/api/my-assets/vehicles");
+        // Lưu dữ liệu vào biến toàn cục
+        allMyVehicles = (vehicles && Array.isArray(vehicles)) ? vehicles : [];
+        // Gọi hàm render lần đầu (chỉ hiển thị 2 mục)
+        renderMyVehicles(); 
+    } catch (error) {
+        console.error("Failed to load vehicles:", error);
+        allMyVehicles = []; // Đảm bảo mảng rỗng nếu có lỗi
+        renderMyVehicles(); // Hiển thị thông báo lỗi hoặc không có xe
+    }
+}
+
+async function viewVehicleDetail(vehicle_id) {  
+  const modalContent = document.getElementById('detail-modal-content'); 
+  modalContent.innerHTML = `
+    <div class="animate-pulse">
+      <div class="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
+      <div class="h-64 bg-gray-200 rounded w-full mb-4"></div>
+      <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>            
+      <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+    </div>`;
+  const buttonDiv = document.getElementById('button_div');
+  let btn = document.getElementById('add-image-btn');
+  if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'add-image-btn';
+      btn.textContent = 'Cập nhật ảnh';
+      btn.className = 'bg-yellow-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-yellow-600';
+      buttonDiv.prepend(btn);
+  } 
+  btn.onclick = () => uploadImage(vehicle_id, 'vehicle');
+  openModal('detail-modal');
+  try { 
+    const listing = await apiRequest(`/listing/api/listings/vehicle/${vehicle_id}`);
+    if (listing) { 
+      renderListingDetail(listing);
+    } else {
+      modalContent.innerHTML = '<p class="text-red-500">Không thể tải chi tiết tin đăng.</p>';
+    }
+  } catch (error) {
+    modalContent.innerHTML = '<p class="text-red-500">Đã xảy ra lỗi khi tải dữ liệu.</p>';
+  }
+}
+
