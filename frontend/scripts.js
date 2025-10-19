@@ -574,3 +574,161 @@ async function confirmUpload() {
     fileInput.value = null;
   }
 }
+
+document
+  .getElementById("battery-form")
+  .addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("battery-id").value;
+    const body = {
+      manufacturer: document.getElementById("battery-manufacturer").value,
+      capacity_kwh: parseFloat(
+        document.getElementById("battery-capacity").value
+      ),
+      health_percent: parseInt(document.getElementById("battery-health").value),
+    };
+
+    const method = id ? "PUT" : "POST";
+    const endpoint = id
+      ? `/listing/api/my-assets/batteries/${id}`
+      : "/listing/api/my-assets/batteries";
+
+    try {
+      await apiRequest(endpoint, method, body);
+      showToast(id ? "Cập nhật pin thành công." : "Thêm pin mới thành công.");
+      closeModal("battery-modal");
+      loadMyBatteries();
+    } catch (error) {}
+  });
+
+async function deleteBattery(id) {
+  if (confirm("Bạn có chắc chắn muốn xóa pin này khỏi kho?")) {
+    try {
+      await apiRequest(`/listing/api/my-assets/batteries/${id}`, "DELETE");
+      showToast("Xóa pin thành công.");
+      loadMyBatteries();
+    } catch (error) {}
+  }
+}
+
+async function unlistBattery(id) {
+  if (confirm("Bạn có chắc chắn muốn gỡ bán pin này?")) {
+    try {
+      await apiRequest(`/listing/api/my-assets/batteries/${id}/list`, "DELETE");
+      showToast("Gỡ bán pin thành công.");
+      loadMyBatteries();
+    } catch (error) {}
+  }
+}
+ 
+
+// Biến toàn cục để lưu trữ danh sách pin sau khi gọi API
+let allMyBatteries = [];
+
+/**
+ * Hàm render danh sách pin ra container.
+ * @param {boolean} showAll - Nếu true, hiển thị tất cả pin. Nếu false, chỉ hiển thị 2 pin đầu tiên.
+ */
+function renderMyBatteries(showAll = false) {
+    const container = document.getElementById("my-batteries-container");
+    if (!container) return;
+
+    // Xử lý trường hợp không có pin
+    if (!allMyBatteries || allMyBatteries.length === 0) {
+        container.innerHTML = `<p class="text-gray-500">Bạn chưa có pin nào trong kho.</p>`;
+        return;
+    }
+
+    // Xác định danh sách pin cần hiển thị
+    const batteriesToDisplay = showAll ? allMyBatteries : allMyBatteries.slice(0, 2);
+
+    // Tạo HTML cho các mục pin
+    let contentHTML = batteriesToDisplay.map(b => `
+        <div class="border rounded-lg p-4 flex justify-between items-center bg-white">
+            <div>
+                <p class="font-bold flex items-center">
+                    Nhà sản xuất: ${b.manufacturer}
+                    ${b.is_listed ? renderStatusBadge(b.battery_id) : ""}
+                </p>
+                <p class="text-sm text-gray-600">
+                    ${
+                      b.is_listed
+                        ? `<button onclick="viewBatteryDetail('${b.battery_id}')" class="bg-indigo-000 text-gray-400 text-[0.6rem] rounded hover:bg-indigo-100">Xem Chi Tiết</button>`
+                        : `<p class="text-sm text-gray-600">Dung lượng: ${b.capacity_kwh} | kWh - Tình trạng: ${b.health_percent}%</p>`
+                    }
+                </p>
+            </div>
+            <div class="space-x-2">
+                ${
+                  b.is_listed
+                    ? `<button onclick="unlistBattery(${b.battery_id})" class="bg-yellow-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-yellow-600">Gỡ Bán</button>`
+                    : `<button onclick="openListingModal('battery', ${b.battery_id})" class="bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-blue-600">Đăng Bán</button>`
+                }
+                <button onclick='openModal("battery-modal", ${JSON.stringify(b)})' class="bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-gray-600">Sửa</button>
+                <button onclick="deleteBattery(${b.battery_id})" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Xóa</button> 
+            </div>
+        </div>
+    `).join("");
+
+    // Thêm nút "Hiển thị toàn bộ" hoặc "Ẩn bớt" nếu cần
+    if (allMyBatteries.length > 2) {
+        if (showAll) {
+            contentHTML += `
+                <div class="text-center mt-4">
+                    <button onclick="renderMyBatteries(false)" class="text-blue-600 hover:underline font-semibold">Ẩn bớt</button>
+                </div>`;
+        } else {
+            contentHTML += `
+                <div class="text-center mt-4">
+                    <button onclick="renderMyBatteries(true)" class="text-blue-600 hover:underline font-semibold">Hiển thị toàn bộ (${allMyBatteries.length})</button>
+                </div>`;
+        }
+    }
+
+    container.innerHTML = contentHTML;
+} 
+async function loadMyBatteries() {
+    try {
+        const batteries = await apiRequest("/listing/api/my-assets/batteries");
+        // Lưu dữ liệu vào biến toàn cục
+        allMyBatteries = (batteries && Array.isArray(batteries)) ? batteries : [];
+        // Gọi hàm render lần đầu (chỉ hiển thị 2 mục)
+        renderMyBatteries(); 
+    } catch (error) {
+        console.error("Failed to load batteries:", error);
+        allMyBatteries = []; // Đảm bảo mảng rỗng nếu có lỗi
+        renderMyBatteries(); // Hiển thị thông báo lỗi hoặc không có pin
+    }
+}
+
+async function viewBatteryDetail(battery_id) {  
+    const modalContent = document.getElementById('detail-modal-content'); 
+    modalContent.innerHTML = `
+        <div class="animate-pulse">
+            <div class="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
+            <div class="h-64 bg-gray-200 rounded w-full mb-4"></div>
+            <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+        </div>`; 
+  const buttonDiv = document.getElementById('button_div');
+  let btn = document.getElementById('add-image-btn');
+  if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'add-image-btn';
+      btn.textContent = 'Cập nhật ảnh';
+      btn.className = 'bg-yellow-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-yellow-600';
+      buttonDiv.prepend(btn);
+  } 
+  btn.onclick = () => uploadImage(battery_id, 'battery');
+  openModal('detail-modal');
+  try { 
+    const listing = await apiRequest(`/listing/api/listings/battery/${battery_id}`);
+    if (listing) { 
+      renderListingDetail(listing);
+    } else {
+      modalContent.innerHTML = '<p class="text-red-500">Không thể tải chi tiết tin đăng.</p>';
+    }
+  } catch (error) {
+    modalContent.innerHTML = '<p class="text-red-500">Đã xảy ra lỗi khi tải dữ liệu.</p>';
+  }
+}
