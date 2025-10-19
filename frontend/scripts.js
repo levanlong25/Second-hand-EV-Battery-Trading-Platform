@@ -348,3 +348,229 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+document
+  .getElementById("listing-form")
+  .addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("listing-item-id").value;
+    const type = document.getElementById("listing-item-type").value;
+    const body = {
+      title: document.getElementById("listing-title").value,
+      price: parseFloat(document.getElementById("listing-price").value),
+      description: document.getElementById("listing-description").value,
+    };
+
+    const assetType = type === "battery" ? "batteries" : "vehicles";
+    const endpoint = `/listing/api/my-assets/${assetType}/${id}/list`;
+
+    try {
+      await apiRequest(endpoint, "POST", body);
+      showToast("Đăng bán thành công!");
+      closeModal("listing-modal");
+      if (type === "vehicle") loadMyVehicles();
+      if (type === "battery") loadMyBatteries();
+    } catch (error) {
+      console.error("❌ Invalid JSON response:", responseText);
+      responseData = { message: responseText || "Operation successful" };
+    }
+  });
+
+
+async function loadPublicListings() {
+  try {
+    // Gọi API công khai để lấy các tin đăng đã được duyệt
+    const listings = await apiRequest("/listing/api/listings");
+    const container = document.getElementById("listings-container");
+
+    if (listings && Array.isArray(listings) && listings.length > 0) {
+      container.innerHTML = listings
+        .map((item) => {
+          let detailsHtml = "";
+          // Xử lý hiển thị chi tiết cho xe
+          if (item.listing_type === "vehicle" && item.vehicle_details) {
+            const v = item.vehicle_details;
+            detailsHtml = `
+                                <p class="text-gray-600">Hãng xe: ${
+                                  v.brand
+                                } | Dòng xe: ${v.model} | Năm sản xuất: ${
+              v.year
+            }</p>
+                                <p class="text-sm text-gray-500">Số KM: ${v.mileage.toLocaleString()}</p>
+                            `;
+          }
+          // Xử lý hiển thị chi tiết cho pin
+          else if (item.listing_type === "battery" && item.battery_details) {
+            const b = item.battery_details;
+            detailsHtml = `
+                                <p class="text-gray-600">Nhà sản xuất: ${b.manufacturer}</p>
+                                <p class="text-sm text-gray-500">${b.capacity_kwh}kWh | Tình trạng: ${b.health_percent}%</p>
+                            `;
+          }
+
+          // Template HTML cho mỗi thẻ sản phẩm
+          return `
+                        <div class="bg-white rounded-lg shadow-md overflow-hidden flex flex-col transition-transform transform hover:-translate-y-1">
+                            <div class="relative w-full h-48 bg-gray-200">
+                                <img src="${item.images[0] ? apiBaseUrl + item.images[0] : "https://placehold.co/600x400/e2e8f0/e2e8f0?text=+"}" 
+                                     alt="${item.title}" class="w-full h-full object-cover">
+                            </div>
+                            <div class="p-4 flex flex-col flex-grow">
+                                <h3 class="font-bold text-lg mb-2 truncate">${item.title}</h3>
+                                <div class="flex-grow mb-4">${detailsHtml}</div>
+                                
+                                <div class="mt-auto flex justify-between items-center">
+                                    <p class="text-indigo-600 font-bold text-xl">${Number(item.price * (item.listing_type == "vehicle" ? 1.1 : 1.05)).toLocaleString()} VNĐ</p>
+                                    
+                                    <div class="flex items-center space-x-2">
+                                        <button onclick="addToWatchlist(${item.listing_id})" title="Thêm vào danh sách theo dõi" class="text-gray-400 hover:text-teal-500 p-2 rounded-full hover:bg-gray-100 transition duration-300">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                            </svg>
+                                        </button>
+                                        <button onclick="viewDetail('${item.listing_id}')" class="bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-indigo-600">Xem Chi Tiết</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+        })
+        .join("");
+    } else {
+      // Hiển thị thông báo nếu không có tin đăng nào
+      container.innerHTML = `<div class="col-span-full bg-white p-6 rounded-lg shadow text-center"><p class="text-gray-600">Hiện chưa có tin đăng nào.</p></div>`;
+    }
+  } catch (error) {
+    // Nếu API lỗi, hiển thị thông báo trong container
+    const container = document.getElementById("listings-container");
+    container.innerHTML = `<div class="col-span-full bg-white p-6 rounded-lg shadow text-center"><p class="text-red-500">Không thể tải danh sách tin đăng. Vui lòng thử lại.</p></div>`;
+  }
+}
+
+async function viewDetail(listingId) {  
+    const modalContent = document.getElementById('detail-modal-content'); 
+    modalContent.innerHTML = `
+        <div class="animate-pulse">
+            <div class="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
+            <div class="h-64 bg-gray-200 rounded w-full mb-4"></div>
+            <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+        </div>`;
+    openModal('detail-modal');
+
+    try { 
+        const listing = await apiRequest(`/listing/api/listings/${listingId}`);
+        if (listing) { 
+            renderListingDetail(listing);
+        } else {
+           modalContent.innerHTML = '<p class="text-red-500">Không thể tải chi tiết tin đăng.</p>';
+        }
+    } catch (error) {
+       modalContent.innerHTML = '<p class="text-red-500">Đã xảy ra lỗi khi tải dữ liệu.</p>';
+    }
+}
+function renderListingDetail(item) {
+    const modalContent = document.getElementById('detail-modal-content');
+    
+    let productDetailsHtml = ''; 
+    if (item.listing_type === 'vehicle' && item.vehicle_details) {
+        const v = item.vehicle_details;
+        productDetailsHtml = `
+            <h4 class="text-lg font-semibold mt-4 border-t pt-4">Chi tiết xe</h4>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-2">
+                <p><strong>Hãng xe:</strong> ${v.brand}</p>
+                <p><strong>Dòng xe:</strong> ${v.model}</p>
+                <p><strong>Năm sản xuất:</strong> ${v.year}</p>
+                <p><strong>Số KM đã đi:</strong> ${v.mileage.toLocaleString()}</p>
+            </div>
+        `;
+    } 
+    // Tạo HTML cho chi tiết pin
+    else if (item.listing_type === 'battery' && item.battery_details) {
+        const b = item.battery_details;
+        productDetailsHtml = `
+            <h4 class="text-lg font-semibold mt-4 border-t pt-4">Chi tiết pin</h4>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-2">
+                <p><strong>Nhà sản xuất:</strong> ${b.manufacturer}</p>
+                <p><strong>Dung lượng:</strong> ${b.capacity_kwh} kWh</p>
+                <p><strong>Tình trạng:</strong> ${b.health_percent}%</p>
+            </div>
+        `;
+    }
+ 
+    const detailHtml = `
+        <h3 class="text-2xl font-bold mb-2">${item.title}</h3>
+        <p class="text-2xl font-bold text-indigo-600 mb-4">${Number(item.price).toLocaleString()} VNĐ</p>
+        <div class="w-full h-64 md:h-80 bg-gray-200 rounded-lg mb-4">
+             <img src="${
+                    item.images[0] 
+                    ? apiBaseUrl + item.images[0] 
+                    : "https://placehold.co/600x400/e2e8f0/e2e8f0?text=+"
+                }" alt="..." class="w-full h-full object-contain"> 
+        </div>
+        <h4 class="text-lg font-semibold">Mô tả</h4>
+        <p class="text-gray-700 mt-1 whitespace-pre-wrap">${item.description || 'Không có mô tả.'}</p>
+        ${productDetailsHtml}
+    `;
+    
+    modalContent.innerHTML = detailHtml;
+}
+
+function uploadImage(id, listing_type) {
+  const modal = document.getElementById('upload-modal');
+  modal.classList.remove('hidden'); 
+  modal.dataset.id = '';
+  modal.dataset.type = '';
+
+  modal.dataset.id = id;
+  modal.dataset.type = listing_type; 
+  const fileInput = document.getElementById('upload-image-input');
+  if (fileInput) fileInput.value = null;
+}
+
+
+async function confirmUpload() {
+  const modal = document.getElementById('upload-modal');
+  const fileInput = document.getElementById('upload-image-input');   
+  try {
+    const id = modal.dataset.id;
+    const listing_type = modal.dataset.type;
+    const file = fileInput.files[0]; 
+    if (!file) {
+      alert("Vui lòng chọn một ảnh!");
+      return;
+    } 
+    const formData = new FormData();
+    formData.append("file", file); 
+    let uploadUrl = "";
+    if (listing_type === "vehicle") {
+      uploadUrl = `/listing/api/listings/add_image_vehicle/${id}`;
+    } else if (listing_type === "battery") {
+      uploadUrl = `/listing/api/listings/add_image_battery/${id}`;
+    } else {
+      alert("Loại listing không hợp lệ!");
+      return;
+    } 
+    const res = await fetch(`${apiBaseUrl}${uploadUrl}`, {
+      method: "POST",
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
+      },
+    }); 
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`Lỗi: ${data.error || res.statusText}`);
+      return;  
+    }
+
+    closeAdd("upload-modal");
+    closeModal("detail-modal");
+    alert("Tải ảnh thành công!");
+
+  } catch (err) {
+    console.error("Upload error:", err);
+    alert("Lỗi khi tải ảnh lên!");
+  } finally { 
+    fileInput.value = null;
+  }
+}
