@@ -1203,3 +1203,72 @@ async function loadPublicAuctions() {
     }
 }
 
+async function viewBatteryAuctionDetail(battery_id) {
+    const modalContent = document.getElementById('detail-modal-content');
+    document.getElementById('add-image-btn')?.remove();
+    modalContent.innerHTML = `<div class="animate-pulse h-64 bg-gray-200 rounded w-full"></div>`;
+    openModal('detail-modal');
+
+    try {
+        const item = await apiRequest(`/auction/api/battery/${battery_id}`);
+        if (item) {
+            let productDetailsHtml = '';
+            productDetailsHtml = `
+                <h4 class="text-lg font-semibold mt-4 border-t pt-4">Chi tiết pin</h4>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-2">
+                    <p><strong>Nhà sản xuất:</strong> ${item.battery_details.manufacturer || 'N/A'}</p>
+                    <p><strong>Dung lượng:</strong> ${item.battery_details.capacity_kwh ? item.battery_details.capacity_kwh + ' kWh' : 'N/A'}</p>
+                    <p><strong>Tình trạng:</strong> ${item.battery_details.health_percent ? item.battery_details.health_percent + '%' : 'N/A'}</p>
+                    </div>`;
+            modalContent.innerHTML = `
+                <h3 class="text-2xl font-bold mb-2">Phiên đấu giá #${item.auction_id}</h3>
+                <p class="text-xl font-bold text-indigo-600 mb-4">Giá hiện tại: ${Number(item.current_bid).toLocaleString()} VNĐ</p>
+                <p><strong>Trạng thái:</strong> ${item.auction_status}</p>
+                <p><strong>Bắt đầu:</strong> ${new Date(item.start_time).toLocaleString('vi-VN')}</p>
+                <p><strong>Kết thúc:</strong> ${new Date(item.end_time).toLocaleString('vi-VN')}</p>
+                ${productDetailsHtml}
+                <h4 class="text-lg font-semibold mt-4 border-t pt-4">Thông tin đấu giá</h4>
+                <p>Người bán: ${item.seller_username ? `${item.seller_username} (ID: ${item.bidder_id})` : `ID: ${item.bidder_id}`}</p> 
+                <p>Người thắng hiện tại: ${item.winner_username ? `${item.winner_username} (ID: ${item.winning_bidder_id})` : (item.winning_bidder_id ? `ID: ${item.winning_bidder_id}` : 'N/A')}</p>
+                ${item.auction_status === 'started' ? `
+                <form id="bid-form" class="mt-6 border-t pt-4">
+                    <label for="bid-amount" class="block text-sm font-medium text-gray-700">Giá đặt của bạn (VNĐ)</label>
+                    <input type="number" id="bid-amount" min="${Number(item.current_bid) + 1}"
+                           placeholder="Phải lớn hơn ${Number(item.current_bid).toLocaleString()}"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    <button type="submit" class="w-full mt-4 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Đặt Giá</button>
+                </form>
+                ` : `<p class="mt-6 border-t pt-4 text-center font-semibold text-red-500">Phiên đấu giá chưa bắt đầu hoặc đã kết thúc.</p>`}
+            `;
+            const auctionId = item.auction_id
+
+            const bidForm = document.getElementById('bid-form');
+            if (bidForm) {
+                bidForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const bidAmount = document.getElementById('bid-amount').value;
+                    try {
+                        await apiRequest(`/auction/api/${auctionId}/bid`, 'POST', { bid_amount: parseFloat(bidAmount) });
+                        showToast("Đặt giá thành công!");
+                        closeModal('detail-modal');
+                        loadPublicAuctions();
+                    } catch (error) {}
+                });
+            }
+        } else {
+            modalContent.innerHTML = '<p class="text-red-500">Không thể tải chi tiết đấu giá.</p>';
+        }
+    } catch (error) {
+        modalContent.innerHTML = '<p class="text-red-500">Đã xảy ra lỗi khi tải dữ liệu.</p>';
+    }
+}
+
+async function unauctionBattery(id) {
+  if (confirm("Bạn có chắc chắn muốn gỡ đấu giá pin này?")){
+    try{
+      await apiRequest(`/auction/api/auctions/batteries/${id}`, "DELETE");
+      showToast("Gỡ đấu giá pin thành công.")
+      loadMyBatteries()
+    } catch(error){}
+  }
+}
