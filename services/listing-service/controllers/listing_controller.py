@@ -12,12 +12,34 @@ from functools import wraps
 from app import db
 import uuid
 import os
- 
-# --- Blueprint DUY NHẤT cho toàn bộ service ---
+import requests
+import logging
+  
+logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+AUCTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL', 'http://auction-service:5002')
+REQUEST_TIMEOUT = 3 
 
-
-
+def is_auctioned(resource_type, resource_id):  
+    if not resource_id or resource_id <= 0:
+        return False 
+    url = f"{AUCTION_SERVICE_URL}/api/check/{resource_type}/{resource_id}" 
+    try:
+        response = requests.get(url, timeout=REQUEST_TIMEOUT) 
+        if response.status_code == 200:
+            data = response.json() 
+            return data.get('is_auctioned', False) 
+        elif response.status_code == 404:
+            return False 
+        logger.warning(
+            f"Auction Service returned status {response.status_code} "
+            f"for {resource_type} ID {resource_id}: {response.text}"
+        )
+        return False 
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to connect or request Auction Service (Resource ID: {resource_id}): {e}")
+        return False
+    
 # --- Custom Decorator for Admin Role ---
 def admin_required():
     def wrapper(fn):
@@ -31,9 +53,34 @@ def admin_required():
         return decorator
     return wrapper
 
+def _serialize_vehicle_basic(vehicle): 
+    if not vehicle: return None 
+    return {
+        'vehicle_id': vehicle.vehicle_id,
+        'user_id': vehicle.user_id,
+        'brand': vehicle.brand,
+        'model': vehicle.model,
+        'year': vehicle.year,
+        'mileage': vehicle.mileage
+    }
+
+def _serialize_battery_basic(battery): 
+    if not battery: return None 
+    return {
+        'battery_id': battery.battery_id,
+        'user_id': battery.user_id,
+        'manufacturer': battery.manufacturer,
+        'capacity_kwh': battery.capacity_kwh,
+        'health_percent': battery.health_percent
+    }
+
 # --- HELPER FUNCTIONS ---
 def serialize_vehicle(vehicle):
-    if not vehicle: return None
+    if not vehicle: return None 
+    sale_status = None
+    if vehicle.listing :
+        sale_status = vehicle.listing.status
+
     return {
         'vehicle_id': vehicle.vehicle_id,
         'user_id': vehicle.user_id,
@@ -42,19 +89,23 @@ def serialize_vehicle(vehicle):
         'year': vehicle.year,
         'mileage': vehicle.mileage,
         'is_listed': vehicle.listing is not None,
-        "listing_status": vehicle.listing.status if vehicle.listing else None
+        "listing_status": sale_status 
     }
 
 def serialize_battery(battery):
-    if not battery: return None
+    if not battery: return None 
+    sale_status = None
+    if battery.listing:
+        sale_status = battery.listing.status
+
     return {
         'battery_id': battery.battery_id,
         'user_id': battery.user_id,
         'manufacturer': battery.manufacturer,
         'capacity_kwh': battery.capacity_kwh,
         'health_percent': battery.health_percent,
-        'is_listed': battery.listing is not None ,
-        "listing_status": battery.listing.status if battery.listing else None
+        'is_listed': battery.listing is not None,
+        "listing_status": sale_status 
     }
 
 def serialize_listing(listing):
@@ -444,3 +495,18 @@ def update_listing_status_admin(listing_id):
     if not listing: return jsonify({"error": message}), 404
         
     return jsonify({"message": message, "listing": serialize_listing(listing)}), 200
+# ================================
+
+@api_bp.route('/vehicles/<int:vehicle_id>', methods=['GET'])
+def get_raw_vehicle_details(vehicle_id):
+    vehicle = VehicleService.get_vehicle_by_id(vehicle_id)
+    if not vehicle:
+        return jsonify({"error": "Vehicle not found"}), 404 
+    return jsonify(_serialize_vehicle_basic(vehicle)), 200
+
+@api_bp.route('/batteries/<int:battery_id>', methods=['GET'])
+def get_raw_battery_details(battery_id):
+     battery = BatteryService.get_battery_by_id(battery_id)
+     if not battery:
+         return jsonify({"error": "Battery not found"}), 404 
+     return jsonify(_serialize_battery_basic(battery)), 200

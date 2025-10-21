@@ -4,6 +4,12 @@ docker-compose down -v
 "\\wsl.localhost\docker-desktop\mnt\docker-desktop-disk\data\docker\volumes\second-handevbatterytradingplatform_listing_uploads\_data"
 docker-compose up -d --build
 
+docker-compose exec auction-service flask db init
+
+docker-compose exec auction-service flask db migrate -m "Initial auction service tables"
+
+docker-compose exec auction-service flask db upgrade
+
 docker-compose exec user-service flask db init
 
 docker-compose exec user-service flask db migrate -m "Initial user service tables"
@@ -20,6 +26,13 @@ docker-compose exec listing-service flask db migrate -m "Initial listing service
 docker-compose exec listing-service flask db upgrade
 
 docker-compose exec user-service flask create-admin admin admin@gmail.com 08102005    
+
+
+docker-compose logs -f auction-service
+
+docker exec -it auction_db bash
+psql -U db_user -d auction_db
+TRUNCATE TABLE auction_db CASCADE;
 
 import logging
 from logging.config import fileConfig
@@ -108,14 +121,6 @@ else:
 
 
 
-
-
-docker-compose exec db bash
-psql -U your_db_user -d ev_trading_db
-TRUNCATE TABLE listing_images CASCADE;
-
-
-
 Service	Quản lý bảng	Chức năng chính
 User Service	        Users, Profile	Đăng ký, đăng nhập, quản lý hồ sơ
 Listing Service	        Listings, Vehicles, Batteries, Listing_image, Watchlist, Reports	Đăng tin, tìm kiếm, kiểm duyệt
@@ -124,3 +129,84 @@ Review Service	        Reviews	Đánh giá, phản hồi
 Auction Service     	Auctions	Đấu giá
 AI Pricing Service	    (Không bảng)	Gợi ý giá bằng ML
 Admin Service	        (Truy cập nhiều bảng)	Duyệt user, duyệt listing, xem báo cáo
+
+
+/////////////
+import logging
+from logging.config import fileConfig
+
+from flask import current_app
+from alembic import context
+
+# --- PHẦN THÊM MỚI QUAN TRỌNG: Dành riêng cho AUCTION-SERVICE ---
+# Import các model của service này (chỉ các bảng Đấu giá và Giá thầu)
+# Ví dụ:
+from models.auction import Auction
+from models.bid import Bid
+# (Không import User, Vehicle, Listing, v.v.)
+# ----------------------------------------------------------------
+
+config = context.config
+fileConfig(config.config_file_name)
+logger = logging.getLogger('alembic.env')
+
+# Lấy metadata từ ứng dụng Flask
+target_metadata = current_app.extensions['migrate'].db.metadata
+
+# Danh sách các bảng mà service này quản lý (CHỈ CÁC BẢNG CỦA AUCTION)
+my_tables = [
+    Auction.__tablename__,
+    Bid.__tablename__,
+    # Thêm các bảng khác của AUCTION-SERVICE vào đây nếu có
+]
+
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Hàm này quyết định Alembic có nên "nhìn thấy" một bảng hay không.
+    Nó sẽ chỉ trả về True nếu tên bảng nằm trong danh sách my_tables.
+    """
+    if type_ == "table" and name in my_tables:
+        return True
+    else:
+        return False
+# --- HẾT PHẦN THÊM MỚI ---
+
+
+def get_engine_url():
+    try:
+        return current_app.extensions['migrate'].db.engine.url.render_as_string(hide_password=False).replace('%', '%%')
+    except AttributeError:
+        return str(current_app.extensions['migrate'].db.engine.url).replace('%', '%%')
+
+config.set_main_option('sqlalchemy.url', get_engine_url())
+
+def run_migrations_offline():
+    url = config.get_main_option("sqlalchemy.url")
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+        # Thêm include_object vào đây để Alembic biết cần phớt lờ bảng nào
+        include_object=include_object,
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+def run_migrations_online():
+    connectable = current_app.extensions['migrate'].db.engine
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            # Thêm include_object vào đây
+            include_object=include_object,
+            compare_type=True
+        )
+        with context.begin_transaction():
+            context.run_migrations()
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()

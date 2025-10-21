@@ -1,34 +1,77 @@
+version: "3.9"
+
 services:
-  # 1. Database Service
-  db:
+  # ========== DATABASE SERVICES ==========
+  # User Database
+  db-user:
     image: postgres:14-alpine
-    container_name: ev_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
+    container_name: user_db
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_DB=${USER_DB}
     ports:
       - "5433:5432"
+    volumes:
+      - user_data:/var/lib/postgresql/data
     networks:
       - ev_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${USER_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # Redis Service
+  # Listing Database
+  db-listing:
+    image: postgres:14-alpine
+    container_name: listing_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${LISTING_DB}
+    ports:
+      - "5434:5432"
+    volumes:
+      - listing_data:/var/lib/postgresql/data
+    networks:
+      - ev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${LISTING_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Auction Database
+  db-auction:
+    image: postgres:14-alpine
+    container_name: auction_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${AUCTION_DB}
+    ports:
+      - "5435:5432"
+    volumes:
+      - auction_data:/var/lib/postgresql/data
+    networks:
+      - ev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${AUCTION_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ========== REDIS CACHE ==========
   redis:
-    image: "redis:alpine"
+    image: redis:alpine
     container_name: redis_cache
     ports:
       - "6379:6379"
     networks:
       - ev_network
 
-  # 2. User Service
+  # ========== USER SERVICE ==========
   user-service:
     build: ./services/user-service
     container_name: user_service
@@ -36,51 +79,74 @@ services:
     volumes:
       - ./services/user-service:/app
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-user:5432/${USER_DB}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - REDIS_URL=redis://redis:6379
+    ports:
+      - "5000:5000"
     depends_on:
-      db:
+      db-user:
         condition: service_healthy
       redis:
         condition: service_started
     networks:
       - ev_network
 
-  # 3. Listing Service
+  # ========== LISTING SERVICE ==========
   listing-service:
     build: ./services/listing-service
     container_name: listing_service
     command: gunicorn --bind 0.0.0.0:5001 "app:create_app()"
     volumes:
-      - ./services/listing-service:/app 
+      - ./services/listing-service:/app
       - listing_uploads:/app/uploads
-    environment: 
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-listing:5432/${LISTING_DB}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - FLASK_ENV=development
+    ports:
+      - "5001:5001"
     depends_on:
-      db:
+      db-listing:
         condition: service_healthy
     networks:
       - ev_network
 
-  # 4. API Gateway (Nginx)
+  # ========== AUCTION SERVICE ==========
+  auction-service:
+    build: ./services/auction-service
+    container_name: auction_service
+    command: gunicorn --bind 0.0.0.0:5002 "app:create_app()"
+    volumes:
+      - ./services/auction-service:/app
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-auction:5432/${AUCTION_DB}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - FLASK_ENV=development
+    ports:
+      - "5002:5002"
+    depends_on:
+      db-auction:
+        condition: service_healthy
+    networks:
+      - ev_network
+
+  # ========== API GATEWAY (NGINX) ==========
   api-gateway:
     build: ./api-gateway
     container_name: api_gateway
     ports:
       - "80:80"
-    volumes: 
+    volumes:
       - listing_uploads:/usr/share/nginx/html/uploads:ro
-    # --------------------
     depends_on:
       - user-service
       - listing-service
+      - auction-service
     networks:
       - ev_network
 
-  # 5. Frontend Service (Nginx)
+  # ========== FRONTEND ==========
   frontend:
     build: ./frontend
     container_name: frontend_server
@@ -89,12 +155,14 @@ services:
     networks:
       - ev_network
 
-# Định nghĩa network
+# ========== NETWORKS ==========
 networks:
   ev_network:
     driver: bridge
 
-# Định nghĩa volume
+# ========== VOLUMES ==========
 volumes:
-  postgres_data:
+  user_data:
+  listing_data:
+  auction_data:
   listing_uploads:

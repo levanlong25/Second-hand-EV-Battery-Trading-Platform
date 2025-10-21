@@ -1,0 +1,11 @@
+Flask
+Flask-SQLAlchemy
+psycopg2-binary
+Flask-Migrate
+python-dotenv
+gunicorn
+Flask-JWT-Extended
+Flask-Cors
+python-dateutil
+Werkzeug<3.0.0
+requests

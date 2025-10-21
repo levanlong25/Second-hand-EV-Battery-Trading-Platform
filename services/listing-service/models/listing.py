@@ -5,7 +5,7 @@ class Listing(db.Model):
     __tablename__ = 'listings'
 
     listing_id = db.Column(db.Integer, primary_key=True)
-    seller_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    seller_id = db.Column(db.Integer, nullable=False)
     vehicle_id = db.Column(db.Integer, db.ForeignKey('vehicles.vehicle_id'), nullable=True, unique=True)
     battery_id = db.Column(db.Integer, db.ForeignKey('batteries.battery_id'), nullable=True, unique=True)
     listing_type = db.Column(db.Enum('vehicle', 'battery', name='listing_type_enum'), nullable=False)
@@ -15,7 +15,6 @@ class Listing(db.Model):
     status = db.Column(db.Enum('available', 'sold', 'pending', 'rejected', name='listing_statuses'), default='pending', nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
  
-    seller = db.relationship('User', back_populates='listings')
     vehicle = db.relationship('Vehicle', back_populates='listing')
     battery = db.relationship('Battery', back_populates='listing')
      

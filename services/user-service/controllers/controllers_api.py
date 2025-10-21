@@ -22,6 +22,12 @@ def serialize_user(user):
         "role": user.role,
         "status": user.status
     }
+def serialize_info(user):
+    if not user: return None
+    return {
+        "user_id": user.user_id,
+        "username": user.username
+    }
 
 def serialize_profile(profile):
     """Chuyển đổi đối tượng Profile thành dictionary."""
@@ -167,6 +173,10 @@ def delete_my_account():
         return jsonify({"error": message}), 404
     return jsonify({"message": message}), 200
 
+@api_bp.route("/info/<int:user_id>", methods = ['GET'])
+def get_info_user(user_id):
+    user = UserLogic.get_user_by_id(user_id=user_id)
+    return jsonify([serialize_info(user)]), 200
 
 # --- Admin Management Endpoints (Admin Protected) ---
 

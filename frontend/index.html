@@ -111,12 +111,25 @@
             </div>
         </div>
 
-        <!-- Listings Page (Public) -->
         <div id="listings-page" class="page">
-            <h2 class="text-3xl font-bold mb-6">Sàn Giao Dịch</h2>
-            <div id="listings-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Listings will be injected here -->
+            <div class="border-b border-gray-200 mb-6">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button id="listing-tab" onclick="showMarketTab('listings')"
+                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Sản Phẩm Đang Bán
+                    </button>
+                    <button id="auction-tab" onclick="showMarketTab('auctions')"
+                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Sản Phẩm Đang Đấu Giá
+                    </button>
+                </nav>
             </div>
+
+            <div id="listings-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
+
+            <div id="auctions-container" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
         </div>
 
         <!-- Profile & My Assets Page -->
@@ -191,14 +204,12 @@
             </div>
         </div>
         <div id="watchlist-page" class="page">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-3xl font-bold">Danh sách theo dõi của tôi</h2>
-                <button onclick="navigateTo('profile')" class="text-indigo-600 hover:underline font-semibold">&larr; Quay lại Hồ sơ</button>
-            </div>
+            <h2 class="text-2xl font-bold mb-6 text-gray-900">Danh sách theo dõi</h2>
             <div id="watchlist-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="col-span-full text-center bg-white p-12 rounded-lg shadow"> 
                 </div>
+            </div>
         </div>
-
     </main>
     
     <!-- Modals for Add/Edit/List -->
@@ -262,6 +273,33 @@
         </div>
     </div>
 
+    <div id="auction-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+            <h3 class="text-xl font-bold mb-4">Tạo Phiên Đấu Giá</h3>
+            <form id="auction-form">
+                <input type="hidden" id="auction-item-id">
+                <input type="hidden" id="auction-item-type">
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="auction-start-bid" class="block text-sm font-medium">Giá khởi điểm (VNĐ)</label>
+                        <input type="number" id="auction-start-bid" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="auction-start-time" class="block text-sm font-medium">Thời gian bắt đầu</label>
+                        <input type="datetime-local" id="auction-start-time" class="mt-1 w-full border-gray-300 rounded-md shadow-sm" required>
+                        <p class="text-xs text-gray-500 mt-1">Lưu ý: Thời gian bắt đầu phải sau 8 giờ kể từ hiện tại.</p>
+                    </div>
+                    <p class="text-sm text-gray-600">Phiên đấu giá sẽ tự động kết thúc sau 2 giờ kể từ khi bắt đầu.</p>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeModal('auction-modal')" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Hủy</button>
+                    <button type="submit" class="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700">Tạo Đấu Giá</button>
+                </div>
+            </form>
+        </div>
+    </div>
     <!-- Listing Modal -->
     <div id="listing-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">

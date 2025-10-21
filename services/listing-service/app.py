@@ -13,7 +13,6 @@ db = SQLAlchemy()
 migrate = Migrate(version_table='alembic_version_listings')
 jwt = JWTManager()
  
-from models.user import User
 from models.vehicle import Vehicle
 from models.battery import Battery
 from models.listing import Listing

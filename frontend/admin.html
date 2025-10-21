@@ -109,6 +109,12 @@
               class="tab-link whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               >Quản lý Tin Đăng</a
             >
+            <a
+              href="#"
+              onclick="showSection('auctions-section')"
+              class="tab-link whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              >Quản lý Đấu Giá</a
+            >
           </nav>
         </div>
 
@@ -173,6 +179,21 @@
           </h2>
           <div id="all-listings-container" class="space-y-4">
             <!-- All listings will be injected here -->
+          </div>
+        </div>
+
+
+        <div id="auctions-section" class="dashboard-section">
+          <h2 class="text-xl font-semibold mb-4">Đấu giá chờ duyệt</h2>
+          <div id="pending-auctions-container" class="space-y-4 mb-8">
+            <!-- Pending auctions will be injected here -->
+          </div>
+
+          <h2 class="text-xl font-semibold mb-4 border-t pt-4">
+            Tất cả đấu giá
+          </h2>
+          <div id="all-auctions-container" class="space-y-4">
+            <!-- All auctions will be injected here -->
           </div>
         </div>
       </main>
