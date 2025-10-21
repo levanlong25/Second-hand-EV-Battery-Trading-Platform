@@ -329,3 +329,42 @@ def delete_battery_auction(battery_id):
         return jsonify({"error": message}), status_code
     
     return jsonify({"message": message}), 200
+
+def get_and_serialize_vehicle_by_id(vehicle_id: int): 
+    if not vehicle_id: return None 
+    url = f"{LISTING_SERVICE_URL}/api/vehicles/{vehicle_id}" 
+    try:
+        response = requests.get(url, timeout=REQUEST_TIMEOUT)
+        if response.status_code == 200: 
+            return response.json() 
+        else: 
+            logger.warning(f"Listing Service returned status {response.status_code} for vehicle ID {vehicle_id} at {url}")
+            return None
+    except requests.exceptions.RequestException as e: 
+         logger.error(f"Failed to connect to Listing Service at {url} for vehicle details: {e}")
+         return None
+
+
+         
+
+@auction_bp.route('/vehicle/<int:vehicle_id>', methods=['GET'])
+def get_auction_vehicle_details(vehicle_id): 
+    auction = AuctionService.get_auction_by_vehicle_id(vehicle_id)
+    if not auction:
+        return jsonify({"error": "Auction not found"}), 404
+    return _package_auction_details(auction)
+
+
+
+@auction_bp.route('/auctions/vehicles/<int:vehicle_id>', methods=['DELETE'])
+@jwt_required()
+def delete_vehicle_auction(vehicle_id): 
+    current_user_id = int(get_jwt_identity())
+
+    success, message, status_code = AuctionService.delete_vehicle_auction(vehicle_id, current_user_id)
+    if not success:
+        return jsonify({"error": message}), status_code
+    
+    return jsonify({"message": message}), 200
+
+

@@ -391,6 +391,31 @@ class AuctionService:
             print(f"Lỗi khi xóa đấu giá: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             return False, f"An error occurred: {str(e)}"
+        
+        @staticmethod
+    def delete_vehicle_auction(vehicle_id, user_id): 
+        try:
+            auction = Auction.query.filter_by(vehicle_id=vehicle_id).first()
+            if not auction:
+                return False, "Auction not found.", 404
+
+            if auction.bidder_id != user_id:
+                return False, "You do not have permission to delete this auction.", 403
+            current_time = datetime.now(timezone.utc)
+            start_time_utc = to_utc(auction.start_time) 
+            if start_time_utc - current_time <= timedelta(hours=8) and start_time_utc > current_time:
+                return False, "You can only delete an auction at least 8 hour before it starts." , 400
+            if auction.winning_bidder_id:
+                return False, "You can not delete beacause have a winner." , 400
+            db.session.delete(auction)
+            db.session.commit()
+            return True, "Auction deleted successfully.", 200
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Lỗi khi xóa đấu giá: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return False, f"An error occurred: {str(e)}"   
 
 
 
