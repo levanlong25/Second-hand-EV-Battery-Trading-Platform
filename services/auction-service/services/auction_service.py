@@ -291,3 +291,78 @@ class AuctionService:
         auction.auction_status = new_status
         db.session.commit()
         return auction, "Status updated successfully."
+    @staticmethod
+    def manually_finalize_auction(auction_id):
+        try:
+            auction = db.session.get(Auction, auction_id)
+            if not auction:
+                return None, "Auction not found."
+
+            if not auction.winning_bidder_id:
+                return None, "No winning bid found."
+
+            if to_utc(auction.end_time) > datetime.now(timezone.utc):
+                auction.end_time = datetime.now(timezone.utc)
+
+            auction.auction_status = 'ended'
+
+            db.session.commit()
+            db.session.refresh(auction)
+
+            winner_name = str(auction.winning_bidder_id) if auction.winning_bidder_id else "Unknown"
+            return auction, f"Auction finalized. Winner: {winner_name}"
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Lỗi khi hoàn tất đấu giá: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return None, f"An internal error occurred: {str(e)}"
+    @staticmethod
+    def auto_finalize_auctions(): 
+        try:
+            current_time = datetime.now(timezone.utc) 
+            auctions_to_end = Auction.query.filter(
+                Auction.auction_status.in_(['started', 'prepare']),
+                Auction.end_time <= current_time
+            ).all()
+
+            if not auctions_to_end:
+                return 0  
+
+            for auction in auctions_to_end:
+                auction.auction_status = 'ended'
+            
+            db.session.commit()
+            print(f"Successfully finalized {len(auctions_to_end)} auctions.")
+            return len(auctions_to_end)
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Lỗi khi tự động hoàn tất đấu giá: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return -1 
+    @staticmethod
+    def auto_start_auctions(): 
+        try:
+            current_time = datetime.now(timezone.utc) 
+            auctions_to_start = Auction.query.filter(
+                Auction.auction_status == 'prepare',
+                Auction.start_time <= current_time,
+                Auction.end_time > current_time
+            ).all()
+
+            if not auctions_to_start:
+                return 0  
+
+            for auction in auctions_to_start:
+                auction.auction_status = 'started'
+            
+            db.session.commit()
+            print(f"Hệ thống đã tự động bắt đầu {len(auctions_to_start)} phiên đấu giá.")
+            return len(auctions_to_start)
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Lỗi khi tự động bắt đầu đấu giá: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return -1   

@@ -1080,5 +1080,126 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
+/** Hiển thị chi tiết một phiên đấu giá và form đặt giá. */
+async function viewAuctionDetail(auctionId) {
+    const modalContent = document.getElementById('detail-modal-content');
+    document.getElementById('add-image-btn')?.remove();
+    modalContent.innerHTML = `<div class="animate-pulse h-64 bg-gray-200 rounded w-full"></div>`;
+    openModal('detail-modal');
 
+    try {
+        const item = await apiRequest(`/auction/api/${auctionId}`);
+        if (item) {
+            let productDetailsHtml = '';
+            if (item.auction_type === 'vehicle' && item.vehicle_details) {
+                productDetailsHtml = `
+                <h4 class="text-lg font-semibold mt-4 border-t pt-4">Chi tiết xe</h4>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-2">
+                    <p><strong>Hãng xe:</strong> ${item.vehicle_details.brand || 'N/A'}</p>
+                    <p><strong>Dòng xe:</strong> ${item.vehicle_details.model || 'N/A'}</p>
+                    <p><strong>Năm sản xuất:</strong> ${item.vehicle_details.year || 'N/A'}</p>
+                    <p><strong>Số KM đã đi:</strong> ${item.vehicle_details.mileage ? item.vehicle_details.mileage.toLocaleString() : 'N/A'}</p>
+                    </div>`;
+            } else if (item.auction_type === 'battery' && item.battery_details) {
+                productDetailsHtml = `
+                <h4 class="text-lg font-semibold mt-4 border-t pt-4">Chi tiết pin</h4>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-2">
+                    <p><strong>Nhà sản xuất:</strong> ${item.battery_details.manufacturer || 'N/A'}</p>
+                    <p><strong>Dung lượng:</strong> ${item.battery_details.capacity_kwh ? item.battery_details.capacity_kwh + ' kWh' : 'N/A'}</p>
+                    <p><strong>Tình trạng:</strong> ${item.battery_details.health_percent ? item.battery_details.health_percent + '%' : 'N/A'}</p>
+                    </div>`;
+            }
+
+            modalContent.innerHTML = `
+                <h3 class="text-2xl font-bold mb-2">Phiên đấu giá #${item.auction_id}</h3>
+                <p class="text-xl font-bold text-indigo-600 mb-4">Giá hiện tại: ${Number(item.current_bid).toLocaleString()} VNĐ</p>
+                <p><strong>Trạng thái:</strong> ${item.auction_status}</p>
+                <p><strong>Bắt đầu:</strong> ${new Date(item.start_time).toLocaleString('vi-VN')}</p>
+                <p><strong>Kết thúc:</strong> ${new Date(item.end_time).toLocaleString('vi-VN')}</p>
+                ${productDetailsHtml}
+                
+                <h4 class="text-lg font-semibold mt-4 border-t pt-4">Người bán</h4>
+                <p>Người bán: ${item.seller_username ? `${item.seller_username} (ID: ${item.bidder_id})` : `ID: ${item.bidder_id}`}</p> 
+                <p>Người thắng hiện tại: ${item.winner_username ? `${item.winner_username} (ID: ${item.winning_bidder_id})` : (item.winning_bidder_id ? `ID: ${item.winning_bidder_id}` : 'N/A')}</p>
+                ${item.auction_status === 'started' ? `
+                <form id="bid-form" class="mt-6 border-t pt-4">
+                    <label for="bid-amount" class="block text-sm font-medium text-gray-700">Giá đặt của bạn (VNĐ)</label>
+                    <input type="number" id="bid-amount" min="${Number(item.current_bid) + 1}"
+                           placeholder="Phải lớn hơn ${Number(item.current_bid).toLocaleString()}"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    <button type="submit" class="w-full mt-4 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Đặt Giá</button>
+                </form>
+                ` : `<p class="mt-6 border-t pt-4 text-center font-semibold text-red-500">Phiên đấu giá chưa bắt đầu hoặc đã kết thúc.</p>`}
+            `;
+
+            const bidForm = document.getElementById('bid-form');
+            if (bidForm) {
+                bidForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const bidAmount = document.getElementById('bid-amount').value;
+                    try {
+                        await apiRequest(`/auction/api/${auctionId}/bid`, 'POST', { bid_amount: parseFloat(bidAmount) });
+                        showToast("Đặt giá thành công!");
+                        closeModal('detail-modal');
+                        loadPublicAuctions();
+                    } catch (error) {}
+                });
+            }
+        } else {
+            modalContent.innerHTML = '<p class="text-red-500">Không thể tải chi tiết đấu giá.</p>';
+        }
+    } catch (error) {
+        modalContent.innerHTML = '<p class="text-red-500">Đã xảy ra lỗi khi tải dữ liệu.</p>';
+    }
+}
+async function loadPublicAuctions() {
+    try {
+        const auctions = await apiRequest("/auction/api/");
+        const container = document.getElementById("auctions-container");
+
+        if (auctions && Array.isArray(auctions) && auctions.length > 0) {
+            container.innerHTML = auctions.map((item) => {
+                let detailsHtml = "";
+                if (item.auction_type === "vehicle" && item.vehicle_details) {
+                    const v = item.vehicle_details;
+                    detailsHtml = `<p class="text-gray-600">Xe: ${v.model || 'N/A'}</p>`;
+                } else if (item.auction_type === "battery" && item.battery_details) {
+                    const b = item.battery_details;
+                    detailsHtml = `<p class="text-gray-600">Pin: ${b.name || 'N/A'}</p>`;
+                }
+
+                const startTime = new Date(item.start_time).toLocaleString('vi-VN');
+                const endTime = new Date(item.end_time).toLocaleString('vi-VN');
+
+                return `
+                <div class="bg-white rounded-lg shadow-md overflow-hidden flex flex-col transition-transform transform hover:-translate-y-1">
+                    <div class="p-4 flex flex-col flex-grow">
+                        <h3 class="font-bold text-lg mb-2 truncate">Phiên đấu giá #${item.auction_id}</h3>
+                        <span class="mb-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                            ${item.auction_status}
+                        </span>
+                        <div class="flex-grow mb-4">
+                            ${detailsHtml}
+                            <p class="text-sm text-gray-500">Bắt đầu: ${startTime}</p>
+                            <p class="text-sm text-gray-500">Kết thúc: ${endTime}</p>
+                        </div>
+                        <div class="mt-auto flex justify-between items-center">
+                            <div>
+                                <p class="text-sm text-gray-500">Giá hiện tại:</p>
+                                <p class="text-indigo-600 font-bold text-xl">${Number(item.current_bid).toLocaleString()} VNĐ</p>
+                            </div>
+                            <button onclick="viewAuctionDetail(${item.auction_id})" class="bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-indigo-600">Xem Chi Tiết</button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join("");
+        } else {
+            container.innerHTML = `<div class="col-span-full bg-white p-6 rounded-lg shadow text-center"><p class="text-gray-600">Hiện chưa có phiên đấu giá nào.</p></div>`;
+        }
+    } catch (error) {
+        const container = document.getElementById("auctions-container");
+        container.innerHTML = `<div class="col-span-full bg-white p-6 rounded-lg shadow text-center"><p class="text-red-500">Không thể tải danh sách đấu giá.</p></div>`;
+    }
+}
 

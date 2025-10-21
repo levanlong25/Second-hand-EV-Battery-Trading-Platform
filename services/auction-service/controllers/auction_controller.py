@@ -101,6 +101,137 @@ def check_auction_status(resource_type, resource_id):
     is_auctioned_status = AuctionService.check_if_resource_is_auctioned(resource_type, resource_id) 
     return jsonify({"is_auctioned": is_auctioned_status}), 200
 
+@auction_bp.route('/', methods=['GET'])
+def get_active_auctions(): 
+    auctions = AuctionService.get_all_active_auctions()
+    enriched_auctions = []
+    for auction in auctions:
+        auction_data = serialize_auction(auction) 
+        if auction_data.get('auction_type') == 'vehicle' and auction_data.get('vehicle_id'):
+            auction_data['vehicle_details'] = get_and_serialize_vehicle_by_id(auction_data['vehicle_id'])
+        elif auction_data.get('auction_type') == 'battery' and auction_data.get('battery_id'):
+            auction_data['battery_details'] = get_and_serialize_battery_by_id(auction_data['battery_id'])
+         
+        seller_info = get_user_info_by_id(auction_data.get('bidder_id'))
+        if seller_info and 'username' in seller_info:
+             auction_data['seller_username'] = seller_info['username']
+
+        winner_info = None
+        winning_bidder_id = auction_data.get('winning_bidder_id')
+        if winning_bidder_id:
+            winner_info = get_user_info_by_id(winning_bidder_id)
+        if winner_info and 'username' in winner_info:
+            auction_data['winner_username'] = winner_info['username']
+        enriched_auctions.append(auction_data)
+        
+    return jsonify(enriched_auctions), 200
+
+@auction_bp.route('/<int:auction_id>', methods=['GET'])
+def get_auction_details(auction_id): 
+    auction = AuctionService.get_auction_by_id(auction_id)
+    if not auction:
+        return jsonify({"error": "Auction not found"}), 404
+    return _package_auction_details(auction)
+
+# ============================================
+# === AUCTION API - PROTECTED ENDPOINTS ===
+# ============================================
+
+@auction_bp.route('/', methods=['POST'])
+@jwt_required()
+def create_auction(): 
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+ 
+    data['bidder_id'] = current_user_id
+     
+    if 'start_time' in data and isinstance(data['start_time'], str):
+        try:
+            data['start_time'] = parser.isoparse(data['start_time'])
+        except ValueError:
+            return jsonify({"error": "Invalid start_time format. Use ISO 8601 format."}), 400
+
+    auction, message = AuctionService.add_auction(data)
+    if not auction:
+        return jsonify({"error": message}), 400
+    
+    return jsonify({"message": message, "auction": serialize_auction(auction)}), 201
+
+@auction_bp.route('/<int:auction_id>', methods=['PUT'])
+@jwt_required()
+def update_auction(auction_id): 
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "Request body must be JSON"}), 400
+ 
+    if 'start_time' in data and isinstance(data['start_time'], str):
+        try:
+            data['start_time'] = parser.isoparse(data['start_time'])
+        except ValueError:
+            return jsonify({"error": "Invalid start_time format. Use ISO 8601 format."}), 400
+
+    auction, message = AuctionService.update_auction_metadata(auction_id, current_user_id, data)
+    if not auction:
+        return jsonify({"error": message}), 403  
+        
+    return jsonify({"message": message, "auction": serialize_auction(auction)}), 200
+
+@auction_bp.route('/auctions/<int:auction_id>', methods=['DELETE'])
+@jwt_required()
+def delete_auction(auction_id): 
+    current_user_id = int(get_jwt_identity())
+    user_role = get_jwt().get("role")
+
+    success, message = AuctionService.delete_auction(auction_id, current_user_id, user_role)
+    if not success:
+        return jsonify({"error": message}), 403
+    
+    return jsonify({"message": message}), 200
+
+
+@auction_bp.route('/<int:auction_id>/bid', methods=['POST'])
+@jwt_required()
+def place_bid(auction_id): 
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    if not data or 'bid_amount' not in data:
+        return jsonify({"error": "Missing 'bid_amount' in request body"}), 400
+    
+    try:
+        bid_amount = float(data['bid_amount'])
+    except (ValueError, TypeError):
+        return jsonify({"error": "'bid_amount' must be a valid number"}), 400
+
+    auction, message = AuctionService.place_bid(auction_id, current_user_id, bid_amount)
+    if not auction:
+        return jsonify({"error": message}), 400
+        
+    return jsonify({"message": message, "auction": serialize_auction(auction)}), 200
+
+# ============================================
+# === AUCTION API - "MY" ENDPOINTS ===
+# ============================================
+
+@auction_bp.route('/my-auctions', methods=['GET'])
+@jwt_required()
+def get_my_created_auctions(): 
+    current_user_id = int(get_jwt_identity())
+    auctions = AuctionService.get_auctions_by_creator(current_user_id)
+    return jsonify([serialize_auction(a) for a in auctions]), 200
+
+@auction_bp.route('/my-bids', methods=['GET'])
+@jwt_required()
+def get_my_winning_bids(): 
+    current_user_id = int(get_jwt_identity())
+    auctions = AuctionService.get_auctions_by_winning_bidder(current_user_id)
+    return jsonify([serialize_auction(a) for a in auctions]), 200
+
 # ============================================
 # === AUCTION API - ADMIN ENDPOINTS ===
 # ============================================
