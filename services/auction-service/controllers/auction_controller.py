@@ -120,13 +120,6 @@ def _package_auction_details(auction):
         auction_data['winner_username'] = winner_info['username']
     return jsonify(auction_data), 200
 
-# @auction_bp.route('/check/<resource_type>/<int:resource_id>', methods=['GET'])
-# def check_auction_status(resource_type, resource_id):
-#     if resource_type not in ['vehicle', 'battery']:
-#         return jsonify({"error": "Invalid resource type"}), 400  
-#     result = AuctionService.check_if_resource_is_auctioned(resource_type, resource_id)
-#     return jsonify(result), 200
-
 @auction_bp.route('/check/<resource_type>/<int:resource_id>', methods=['GET'])
 def check_auction_status(resource_type, resource_id): 
     if resource_type not in ['vehicle', 'battery']:

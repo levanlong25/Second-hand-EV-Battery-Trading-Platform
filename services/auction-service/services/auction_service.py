@@ -370,33 +370,6 @@ class AuctionService:
             print(f"Lỗi khi duyệt đấu giá: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             return None, f"An internal error occurred: {str(e)}"
-        
-    # @staticmethod 
-    # def check_if_resource_is_auctioned(resource_type, resource_id):
-    #     try: 
-    #         if resource_type == 'vehicle':
-    #             condition = (Auction.vehicle_id == resource_id)
-    #         elif resource_type == 'battery': 
-    #             condition = (Auction.battery_id == resource_id)
-    #         else:
-    #             return {"is_auctioned": False, "auction_status": None}
-    
-    #         auction = db.session.query(Auction)\
-    #             .filter(condition)\
-    #             .first()
-
-    #         if not auction: 
-    #             return {"is_auctioned": False, "auction_status": None} 
-    #         active_statuses = ['pending', 'prepare','started']
-    #         #  nonactive_statuses = ['ended', 'rejected']
-            
-    #         return {
-    #             "is_auctioned": auction.auction_status in active_statuses,
-    #             "auction_status": auction.auction_status
-    #         } 
-    #     except Exception as e:
-    #         logger.error(f"Error checking auction status for {resource_type} ID {resource_id}: {e}")
-    #         return {"is_auctioned": False, "auction_status": None}
 
     @staticmethod
     def check_if_resource_is_auctioned(resource_type, resource_id) :

@@ -20,32 +20,6 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 AUCTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL', 'http://auction-service:5002')
 REQUEST_TIMEOUT = 1
 
-# def is_auctioned(resource_type, resource_id):  
-#     if not resource_id or resource_id <= 0:
-#         return {"is_auctioned": False, "auction_status": None}
-
-#     url = f"{AUCTION_SERVICE_URL}/api/check/{resource_type}/{resource_id}" 
-#     try:
-#         response = requests.get(url, timeout=REQUEST_TIMEOUT) 
-#         if response.status_code == 200:
-#             data = response.json()
-#             return {
-#                 "is_auctioned": data.get("is_auctioned", False),
-#                 "auction_status": data.get("auction_status")
-#             }
-#         elif response.status_code == 404:
-#             return {"is_auctioned": False, "auction_status": None}
-
-#         logger.warning(
-#             f"Auction Service returned status {response.status_code} "
-#             f"for {resource_type} ID {resource_id}: {response.text}"
-#         )
-#         return {"is_auctioned": False, "auction_status": None}
-
-#     except requests.exceptions.RequestException as e:
-#         logger.error(f"Failed to connect or request Auction Service (Resource ID: {resource_id}): {e}")
-#         return {"is_auctioned": False, "auction_status": None}
-
 def is_auctioned(resource_type, resource_id):  
     if not resource_id or resource_id <= 0:
         return False 
@@ -118,59 +92,6 @@ def _serialize_battery_basic(battery):
         'capacity_kwh': battery.capacity_kwh,
         'health_percent': battery.health_percent
     }
-
-# --- HELPER FUNCTIONS ---
-# def serialize_vehicle(vehicle):
-#     if not vehicle: return None
-#     sale_status = None 
-#     if vehicle.listing:
-#         sale_status = vehicle.listing.status
-#         return {
-#         'vehicle_id': vehicle.vehicle_id,
-#         'user_id': vehicle.user_id,
-#         'brand': vehicle.brand,
-#         'model': vehicle.model,
-#         'year': vehicle.year,
-#         'mileage': vehicle.mileage,
-#         'is_listed': vehicle.listing is not None,
-#         "listing_status": sale_status
-#         }
-#     is_auctioned_status = is_auctioned('vehicle', vehicle.vehicle_id)
-#     return {
-#     'vehicle_id': vehicle.vehicle_id,
-#     'user_id': vehicle.user_id,
-#     'brand': vehicle.brand,
-#     'model': vehicle.model,
-#     'year': vehicle.year,
-#     'mileage': vehicle.mileage,
-#     "is_auctioned": is_auctioned_status.get("is_auctioned", False) if is_auctioned_status else False,
-#     "auction_status": is_auctioned_status.get("auction_status") if is_auctioned_status else None
-#     }
-
-# def serialize_battery(battery):
-#     if not battery: return None
-#     sale_status = None
-#     if battery.listing:
-#         sale_status = battery.listing.status
-#         return {
-#             'battery_id': battery.battery_id,
-#             'user_id': battery.user_id,
-#             'manufacturer': battery.manufacturer,
-#             'capacity_kwh': battery.capacity_kwh,
-#             'health_percent': battery.health_percent,
-#             'is_listed': battery.listing is not None,
-#             "listing_status": sale_status
-#             }
-#     is_auctioned_status = is_auctioned('battery', battery.battery_id)
-#     return {
-#     'battery_id': battery.battery_id,
-#     'user_id': battery.user_id,
-#     'manufacturer': battery.manufacturer,
-#     'capacity_kwh': battery.capacity_kwh,
-#     'health_percent': battery.health_percent,
-#     "is_auctioned": is_auctioned_status.get("is_auctioned", False) if is_auctioned_status else False,
-#     "auction_status": is_auctioned_status.get("auction_status") if is_auctioned_status else None
-#     }
 
 def serialize_vehicle(vehicle):
     if not vehicle: return None 
