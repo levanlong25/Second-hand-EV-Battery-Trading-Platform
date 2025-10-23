@@ -142,7 +142,54 @@ class AuctionService:
             traceback.print_exc(file=sys.stderr)
             return False, f"An error occurred: {str(e)}"
         
-  
+    @staticmethod
+    def delete_vehicle_auction(vehicle_id, user_id): 
+        try:
+            auction = Auction.query.filter_by(vehicle_id=vehicle_id).first()
+            if not auction:
+                return False, "Auction not found.", 404
+
+            if auction.bidder_id != user_id:
+                return False, "You do not have permission to delete this auction.", 403
+            current_time = datetime.now(timezone.utc)
+            start_time_utc = to_utc(auction.start_time) 
+            if start_time_utc - current_time <= timedelta(hours=8) and start_time_utc > current_time:
+                return False, "You can only delete an auction at least 8 hour before it starts." , 400
+            if auction.winning_bidder_id:
+                return False, "You can not delete beacause have a winner." , 400
+            db.session.delete(auction)
+            db.session.commit()
+            return True, "Auction deleted successfully.", 200
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Lỗi khi xóa đấu giá: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return False, f"An error occurred: {str(e)}"        
+    @staticmethod
+    def delete_battery_auction(battery_id, user_id): 
+        try:
+            auction = Auction.query.filter_by(battery_id=battery_id).first()
+            if not auction:
+                return False, "Auction not found.",404
+
+            if auction.bidder_id != user_id:
+                return False, "You do not have permission to delete this auction.",403
+            current_time = datetime.now(timezone.utc)
+            start_time_utc = to_utc(auction.start_time) 
+            if start_time_utc - current_time <= timedelta(hours=8) and start_time_utc > current_time:
+                return False, "You can only delete an auction at least 8 hour before it starts." ,400
+            if auction.winning_bidder_id:
+                return False, "You can not delete beacause have a winner." , 400
+            db.session.delete(auction)
+            db.session.commit()
+            return True, "Auction deleted successfully.", 200
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Lỗi khi xóa đấu giá: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return False, f"An error occurred: {str(e)}"
 
     @staticmethod
     def place_bid(auction_id, bidder_id, bid_amount):
@@ -217,80 +264,6 @@ class AuctionService:
             auction_status=auction_status
         ).order_by(Auction.start_time.asc()).all()
 
-
-    @staticmethod
-    def review_auction(auction_id, is_approved): 
-        try:
-            auction = db.session.get(Auction, auction_id)
-            if not auction:
-                return None, "Auction not found."
-
-            if auction.auction_status != 'pending':
-                return None, f"Auction is already {auction.auction_status} and cannot be reviewed."
-
-            if is_approved: 
-                current_time = datetime.now(timezone.utc)
-                start_time_utc = to_utc(auction.start_time) 
-                if start_time_utc <= current_time + timedelta(hours=1):
-                    return None, "Cannot approve: Start time must be at least 1 hour from now."
-
-                auction.auction_status = 'prepare'
-                message = "Auction approved and is ready to start."
-            else:
-                auction.auction_status = 'rejected'
-                message = "Auction rejected."
-
-            db.session.commit()
-            db.session.refresh(auction)
-            return auction, message
-
-        except Exception as e:
-            db.session.rollback()
-            print(f"Lỗi khi duyệt đấu giá: {e}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-            return None, f"An internal error occurred: {str(e)}"
-        
-    @staticmethod
-    def check_if_resource_is_auctioned(resource_type, resource_id) :
-        try: 
-            filter_condition = None
-            if resource_type == 'vehicle':
-                filter_condition = (Auction.vehicle_id == resource_id)
-            elif resource_type == 'battery':
-                filter_condition = (Auction.battery_id == resource_id)
-            else:
-                return False 
-            active_statuses = ['pending', 'prepare', 'started'] 
-            auction = db.session.query(Auction).filter(
-                and_(
-                    filter_condition, 
-                    Auction.auction_status.in_(active_statuses)
-                )
-            ).first()
-            return auction is not None
-                    
-        except Exception as e:
-            logger.error(f"Error checking auction status for {resource_type} ID {resource_id}: {e}")
-            return False
-
-
-    @staticmethod
-    def get_absolutely_all_auctions(): 
-        return Auction.query.order_by(Auction.start_time.desc()).all()
-    @staticmethod
-    def get_pending_auctions(): 
-        return Auction.query.filter_by(auction_status='pending').order_by(Auction.start_time.asc()).all()
-    @staticmethod
-    def update_auction_status(auction_id, new_status): 
-        auction = Auction.query.get(auction_id)
-        if not auction: return None, "auction not found."
-        
-        allowed_statuses = ['pending', 'prepare','started', 'ended', 'rejected']
-        if new_status not in allowed_statuses: return None, "Invalid status."
-            
-        auction.auction_status = new_status
-        db.session.commit()
-        return auction, "Status updated successfully."
     @staticmethod
     def manually_finalize_auction(auction_id):
         try:
@@ -366,56 +339,125 @@ class AuctionService:
             print(f"Lỗi khi tự động bắt đầu đấu giá: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             return -1   
+    @staticmethod
+    def review_auction(auction_id, is_approved): 
+        try:
+            auction = db.session.get(Auction, auction_id)
+            if not auction:
+                return None, "Auction not found."
+
+            if auction.auction_status != 'pending':
+                return None, f"Auction is already {auction.auction_status} and cannot be reviewed."
+
+            if is_approved: 
+                current_time = datetime.now(timezone.utc)
+                start_time_utc = to_utc(auction.start_time) 
+                if start_time_utc <= current_time + timedelta(hours=1):
+                    return None, "Cannot approve: Start time must be at least 1 hour from now."
+
+                auction.auction_status = 'prepare'
+                message = "Auction approved and is ready to start."
+            else:
+                auction.auction_status = 'rejected'
+                message = "Auction rejected."
+
+            db.session.commit()
+            db.session.refresh(auction)
+            return auction, message
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Lỗi khi duyệt đấu giá: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            return None, f"An internal error occurred: {str(e)}"
+        
+    # @staticmethod 
+    # def check_if_resource_is_auctioned(resource_type, resource_id):
+    #     try: 
+    #         if resource_type == 'vehicle':
+    #             condition = (Auction.vehicle_id == resource_id)
+    #         elif resource_type == 'battery': 
+    #             condition = (Auction.battery_id == resource_id)
+    #         else:
+    #             return {"is_auctioned": False, "auction_status": None}
+    
+    #         auction = db.session.query(Auction)\
+    #             .filter(condition)\
+    #             .first()
+
+    #         if not auction: 
+    #             return {"is_auctioned": False, "auction_status": None} 
+    #         active_statuses = ['pending', 'prepare','started']
+    #         #  nonactive_statuses = ['ended', 'rejected']
+            
+    #         return {
+    #             "is_auctioned": auction.auction_status in active_statuses,
+    #             "auction_status": auction.auction_status
+    #         } 
+    #     except Exception as e:
+    #         logger.error(f"Error checking auction status for {resource_type} ID {resource_id}: {e}")
+    #         return {"is_auctioned": False, "auction_status": None}
+
+    @staticmethod
+    def check_if_resource_is_auctioned(resource_type, resource_id) :
+        try: 
+            filter_condition = None
+            if resource_type == 'vehicle':
+                filter_condition = (Auction.vehicle_id == resource_id)
+            elif resource_type == 'battery':
+                filter_condition = (Auction.battery_id == resource_id)
+            else:
+                return False 
+            active_statuses = ['pending', 'prepare', 'started', 'ended', 'rejected'] 
+            auction = db.session.query(Auction).filter(
+                and_(
+                    filter_condition, 
+                    Auction.auction_status.in_(active_statuses)
+                )
+            ).first()
+            return auction is not None
+                    
+        except Exception as e:
+            logger.error(f"Error checking auction status for {resource_type} ID {resource_id}: {e}")
+            return False
         
     @staticmethod
-    def delete_battery_auction(battery_id, user_id): 
-        try:
-            auction = Auction.query.filter_by(battery_id=battery_id).first()
-            if not auction:
-                return False, "Auction not found.",404
-
-            if auction.bidder_id != user_id:
-                return False, "You do not have permission to delete this auction.",403
-            current_time = datetime.now(timezone.utc)
-            start_time_utc = to_utc(auction.start_time) 
-            if start_time_utc - current_time <= timedelta(hours=8) and start_time_utc > current_time:
-                return False, "You can only delete an auction at least 8 hour before it starts." ,400
-            if auction.winning_bidder_id:
-                return False, "You can not delete beacause have a winner." , 400
-            db.session.delete(auction)
-            db.session.commit()
-            return True, "Auction deleted successfully.", 200
-
+    def check_status_if_resource_is_auctioned(resource_type, resource_id) :
+        try: 
+            filter_condition = None
+            if resource_type == 'vehicle':
+                filter_condition = (Auction.vehicle_id == resource_id)
+            elif resource_type == 'battery':
+                filter_condition = (Auction.battery_id == resource_id)
+            else:
+                return None 
+            active_statuses = ['pending', 'prepare', 'started', 'ended', 'rejected'] 
+            auction = db.session.query(Auction).filter(
+                and_(
+                    filter_condition, 
+                    Auction.auction_status.in_(active_statuses)
+                )
+            ).first()
+            return auction.auction_status
+                    
         except Exception as e:
-            db.session.rollback()
-            print(f"Lỗi khi xóa đấu giá: {e}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-            return False, f"An error occurred: {str(e)}"
+            logger.error(f"Error checking auction status for {resource_type} ID {resource_id}: {e}")
+            return None
+
+    @staticmethod
+    def get_absolutely_all_auctions(): 
+        return Auction.query.order_by(Auction.start_time.desc()).all()
+    @staticmethod
+    def get_pending_auctions(): 
+        return Auction.query.filter_by(auction_status='pending').order_by(Auction.start_time.asc()).all()
+    @staticmethod
+    def update_auction_status(auction_id, new_status): 
+        auction = Auction.query.get(auction_id)
+        if not auction: return None, "auction not found."
         
-        @staticmethod
-    def delete_vehicle_auction(vehicle_id, user_id): 
-        try:
-            auction = Auction.query.filter_by(vehicle_id=vehicle_id).first()
-            if not auction:
-                return False, "Auction not found.", 404
-
-            if auction.bidder_id != user_id:
-                return False, "You do not have permission to delete this auction.", 403
-            current_time = datetime.now(timezone.utc)
-            start_time_utc = to_utc(auction.start_time) 
-            if start_time_utc - current_time <= timedelta(hours=8) and start_time_utc > current_time:
-                return False, "You can only delete an auction at least 8 hour before it starts." , 400
-            if auction.winning_bidder_id:
-                return False, "You can not delete beacause have a winner." , 400
-            db.session.delete(auction)
-            db.session.commit()
-            return True, "Auction deleted successfully.", 200
-
-        except Exception as e:
-            db.session.rollback()
-            print(f"Lỗi khi xóa đấu giá: {e}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-            return False, f"An error occurred: {str(e)}"   
-
-
-
+        allowed_statuses = ['pending', 'prepare','started', 'ended', 'rejected']
+        if new_status not in allowed_statuses: return None, "Invalid status."
+            
+        auction.auction_status = new_status
+        db.session.commit()
+        return auction, "Status updated successfully."

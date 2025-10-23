@@ -12,6 +12,8 @@ class BatteryService:
         required_fields = ['capacity_kwh', 'health_percent', 'manufacturer']
         if not all(field in data for field in required_fields):
             return None, "Missing required battery data."
+        if data['health_percent'] > 100:
+            return None, "Health percentage cannot be greater than 100 "
 
         new_battery = Battery(
             user_id=user_id, # Bắt buộc phải có trường này trong model
