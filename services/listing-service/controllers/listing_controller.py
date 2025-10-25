@@ -18,6 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 AUCTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL', 'http://auction-service:5002')
+TRANSACTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL', 'http://transaction-service:5003')
 REQUEST_TIMEOUT = 1
 
 def is_auctioned(resource_type, resource_id):  
@@ -378,7 +379,7 @@ def remove_my_vehicle_from_sale(vehicle_id):
     success, message = VehicleService.remove_vehicle_from_listing(current_user_id, current_user_role, vehicle_id)
     if not success: return jsonify({"error": message}), 404
     return jsonify({"message": message}), 200
-
+ 
 # ============================================
 # === API watch list ===
 # ============================================

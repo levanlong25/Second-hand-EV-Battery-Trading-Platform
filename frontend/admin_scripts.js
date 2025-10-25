@@ -106,6 +106,7 @@ function showDashboard() {
   loadAllUsers();
   loadAllListings();
   loadAllAuctions();
+  loadAllTransactions()
 }
 
 // --- DATA LOADING & RENDERING ---
@@ -387,3 +388,71 @@ document.addEventListener("DOMContentLoaded", () => {
     dashboardPage.style.display = "none";
   }
 });
+function formatAdminPaymentStatus(status) {
+    switch (status) {
+        case 'initiated':
+            return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Chờ thanh toán</span>';
+        case 'pending':
+            return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Chờ duyệt</span>';
+        case 'completed':
+            return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hoàn thành</span>';
+        case 'failed':
+            return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Thất bại</span>';
+        default:
+            return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">${status}</span>`;
+    }
+}
+
+function formatAdminPaymentMethod(method) {
+    switch (method) {
+        case 'e-wallet': return 'Ví điện tử';
+        case 'bank': return 'Ngân hàng';
+        case 'cash': return 'Tiền mặt';
+        default: return method || 'N/A';
+    }
+}
+async function loadAllTransactions() {
+    try {
+        // ASSUMPTION: API returns an array of objects like:
+        // { transaction_id, payment_id, buyer_username, seller_username, amount, payment_method, payment_status }
+        const payments = await apiRequest("/transaction/api/admin/all-payments");
+        const tbody = document.getElementById("transactions-table-body");
+
+        if (payments && Array.isArray(payments)) {
+            tbody.innerHTML = payments.map(p => `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${p.transaction_id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.payment_id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.buyer_username || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.seller_username || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${parseFloat(p.amount || 0).toLocaleString('vi-VN')} VNĐ</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatAdminPaymentMethod(p.payment_method)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${formatAdminPaymentStatus(p.payment_status)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                        ${p.payment_status === 'pending'
+                            ? `<button onclick="approvePayment(${p.payment_id})" class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 hover:bg-indigo-200 px-3 py-1 rounded-md">Duyệt (Complete)</button>`
+                            : `<span class="text-gray-400">${p.payment_status === 'completed' ? 'Đã duyệt' : (p.payment_status === 'failed' ? 'Thất bại' : 'Chờ TT')}</span>`
+                        }
+                    </td>
+                </tr>
+            `).join("");
+        } else {
+             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">Không có giao dịch nào.</td></tr>';
+        }
+    } catch (error) {
+         const tbody = document.getElementById("transactions-table-body");
+         if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-red-500">Lỗi khi tải giao dịch.</td></tr>';
+    }
+}
+async function approvePayment(paymentId) {
+    if (confirm(`Bạn có chắc chắn muốn duyệt (chuyển sang 'completed') cho thanh toán ID ${paymentId}?`)) {
+        try {
+            // ASSUMPTION: API expects a PUT/POST request to approve
+            await apiRequest(`/transaction/api/admin/payments/${paymentId}/approve`, 'PUT'); // Or 'POST' depending on your backend
+            showToast("Duyệt thanh toán thành công.");
+            loadAllTransactions(); // Refresh the transaction list
+        } catch (error) {
+            // Error toast is handled by apiRequest
+        }
+    }
+}

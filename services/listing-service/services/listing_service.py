@@ -136,6 +136,7 @@ class ListingService:
     def get_absolutely_all_listings():
         """(Admin) Lấy tất cả tin đăng, không lọc theo trạng thái."""
         return Listing.query.order_by(Listing.created_at.desc()).all()
+    
 
     # --- WATCHLIST FUNCTIONS ---
     @staticmethod

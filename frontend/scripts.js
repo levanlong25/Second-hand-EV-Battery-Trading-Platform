@@ -184,6 +184,15 @@ function navigateTo(pageId) {
     if (pageId === "watchlist"){
         loadMyWatchlist();
     }
+    if (pageId === "transactions"){
+        loadMyTransactions();
+    }
+    if (pageId === "payment-result"){
+        loadPaymentResult();
+    }
+    if (pageId === 'pending-payments') {
+        loadPaymentSections(); 
+    }
     if (pageId === "listings") {
         loadPublicListings();
         loadPublicAuctions();
@@ -394,8 +403,7 @@ async function loadMyBatteries() {
         let secondaryActions = `
             <button onclick='openModal("vehicle-modal", ${JSON.stringify(v)})' class="bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-gray-600">Sửa</button>
             <button onclick="deleteVehicle(${v.vehicle_id})" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Xóa</button>
-        `;
-        console.log("vehicle", v.vehicle_id, v.is_auctioned, v.auction_status_resource)
+        `; 
         if (v.is_auctioned) { 
             //statusBadge = `<span class="ml-2 bg-purple-200 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Đang đấu giá</span>`;
             statusBadge = renderStatusAuction(v.auction_status_resource); 
@@ -478,8 +486,7 @@ async function loadMyBatteries() {
         let secondaryActions = `
             <button onclick='openModal("battery-modal", ${JSON.stringify(b)})' class="bg-gray-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-gray-600">Sửa</button>
             <button onclick="deleteBattery(${b.battery_id})" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Xóa</button>
-        `;
-        console.log("battery", b.battery_id, b.is_auctioned, b.auction_status_resource)
+        `; 
         if (b.is_auctioned === true) { 
             //statusBadge = await renderStatusBattery(b.battery_id);  
             //statusBadge = `<span class="ml-2 bg-purple-200 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Đang đấu giá</span>`; 
@@ -693,7 +700,7 @@ async function loadPublicListings() {
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                       </svg>
                     </button>
-                    <button onclick="viewDetail('${item.listing_id}', '${item.listing_type}')" class="bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-indigo-600">Xem Chi Tiết</button>
+                    <button onclick="viewDetail('${item.listing_id}', '${item.seller_id}', '${item.price}')" class="bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-indigo-600">Xem Chi Tiết</button>
                   </div>
                 </div>
               </div>
@@ -890,7 +897,7 @@ async function loadMyWatchlist() {
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                             </button>
-                            <button onclick="viewDetail('${listing.listing_id}', '${listing.listing_type}')" class="bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-indigo-600">Xem Chi Tiết</button>
+                            <button onclick="viewDetail('${listing.listing_id}', '${listing.seller_id}', '${listing.price}')" class="bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-indigo-600">Xem Chi Tiết</button>
                         </div>
                     </div>
                 </div>
@@ -922,8 +929,7 @@ async function addToWatchlist(listingId) {
     try {
         const response = await apiRequest(`/listing/api/watch-list`, "POST", { listing_id: listingId });
         showToast(response.message || "Đã thêm vào danh sách theo dõi thành công!");
-    } catch (error) {
-        console.log("Thao tác thêm vào watchlist không thành công.");
+    } catch (error) { 
     } finally {
         hideLoading();
     }
@@ -963,20 +969,25 @@ async function removeFromWatchlist(buttonElement, listingId) {
 // =================================================================
 
 /** Hiển thị chi tiết một tin đăng bán công khai. */
-async function viewDetail(listingId, listingType) {
+async function viewDetail(listingId, sellerId, finalPrice) {
     const modalContent = document.getElementById('detail-modal-content');
     modalContent.innerHTML = `<div class="animate-pulse h-64 bg-gray-200 rounded w-full"></div>`;
     document.getElementById('add-image-btn')?.remove();
     const buttonDiv = document.getElementById('button_div');
-    let btn = document.getElementById('buy-listing');
-    if (!btn) {
-        btn = document.createElement('button');
-        btn.id = 'buy-listing';
-        btn.textContent = 'Mua';
-        btn.className = 'bg-yellow-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-yellow-600';
-        buttonDiv.prepend(btn);
+    const existingBuyButton = document.getElementById('buy-listing'); 
+    if (sellerId && finalPrice) {
+        let btn = existingBuyButton;
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'buy-listing';
+            btn.textContent = 'Mua';
+            btn.className = 'bg-yellow-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-yellow-600';
+            buttonDiv.prepend(btn);
+        } 
+        btn.onclick = () => buyListing(listingId, sellerId, finalPrice);
+    } else { 
+        existingBuyButton?.remove();
     }
-    btn.onclick = () => buyListing(listingId, listingType);
     openModal('detail-modal');
 
     try {
@@ -1279,65 +1290,24 @@ async function viewAuctionDetail(auctionId) {
         modalContent.innerHTML = '<p class="text-red-500">Đã xảy ra lỗi khi tải dữ liệu.</p>';
     }
 }
-async function buyListing(listingId, listingType) { 
-    if (!confirm('Bạn có chắc chắn muốn mua mặt hàng này không?')) {
-        return; 
-    }
 
-    const buyButton = document.getElementById('buy-listing');
-    const originalButtonText = 'Mua';
 
-    try {
-        // 2. Vô hiệu hóa nút và hiển thị trạng thái đang tải
-        if (buyButton) {
-            buyButton.disabled = true;
-            buyButton.textContent = 'Đang xử lý...';
-        }
 
-        // 3. Gọi API để thực hiện việc mua
-        // Giả định:
-        // - 'apiRequest' là hàm trợ giúp của bạn (giống như trong viewDetail).
-        // - Endpoint để mua hàng là: /listing/api/listings/{listingId}/buy
-        // - Phương thức là 'POST'.
-        const response = await apiRequest(
-            `/listing/api/listings/${listingId}/buy`, 
-            'POST', 
-            { listing_type: listingType }
-        );
 
-        // 4. Xử lý khi thành công
-        if (response) { // Giả định apiRequest trả về dữ liệu khi thành công
-            alert('Mua hàng thành công!');
-            
-            // Đóng modal chi tiết
-            // Giả định bạn có hàm closeModal tương ứng với openModal
-            if (typeof closeModal === 'function') {
-                closeModal('detail-modal');
-            }
-            
-            // Tải lại danh sách tin đăng bên ngoài (nếu có)
-            // ví dụ: loadListings();
-        } else {
-             // Trường hợp apiRequest trả về 'null' hoặc 'undefined' khi thất bại
-            throw new Error('Phản hồi từ máy chủ không hợp lệ.');
-        }
 
-    } catch (error) {
-        // 5. Xử lý khi có lỗi
-        console.error('Lỗi khi mua hàng:', error);
-        // Cố gắng hiển thị thông báo lỗi cụ thể nếu có
-        const errorMessage = error.responseJSON?.message || error.message || 'Đã xảy ra lỗi. Vui lòng thử lại.';
-        alert(`Mua hàng thất bại: ${errorMessage}`);
 
-    } finally {
-        // 6. Khôi phục lại trạng thái nút (ngay cả khi bị lỗi)
-        if (buyButton) {
-            buyButton.disabled = false;
-            buyButton.textContent = originalButtonText;
-        }
-    }
-}
-/** Mở modal để tải ảnh lên. */
+
+
+
+
+
+
+
+
+
+
+
+ 
 function uploadImage(id, listing_type) {
   const modal = document.getElementById('upload-modal');
   modal.classList.remove('hidden');
@@ -1420,31 +1390,39 @@ function showMarketTab(tabName) {
 
 // --- INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", () => {
-  updateNav();
-  const token = localStorage.getItem("jwt_token");
+    updateNav();
+    const token = localStorage.getItem("jwt_token");
 
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-
-      if (payload.exp && payload.exp < currentTime) {
-        console.warn("Token has expired");
-        localStorage.removeItem("jwt_token");
-        navigateTo("home");
-      } else {
-        navigateTo("profile");
-      }
-    } catch (e) {
-      console.error("Invalid token format", e);
-      localStorage.removeItem("jwt_token");
-      navigateTo("home");
+    let isLoggedIn = false;
+    if (token) {
+        try {
+            const payload = JSON.parse(atob(token.split(".")[1]));
+            const currentTime = Math.floor(Date.now() / 1000);
+            if (payload.exp && payload.exp >= currentTime) {
+                isLoggedIn = true;
+            } else {
+                localStorage.removeItem("jwt_token");
+            }
+        } catch (e) {
+            localStorage.removeItem("jwt_token");
+        }
     }
-  } else {
-    navigateTo("home");
-  }
+
+    const isPaymentResultPath = window.location.pathname.includes("/payment-result");
+    const isPaymentResultHash = window.location.hash.startsWith("#/payment-result"); 
+
+    // 3. Kiểm tra xem điều kiện có đúng không
+    if (isPaymentResultPath || isPaymentResultHash) {
+        navigateTo("payment-result");
+        loadPaymentResult();
+        window.history.replaceState({}, document.title, "/#");
+
+    } else {
+        // 5. Log nếu điều kiện SAI
+        if (isLoggedIn) {
+            navigateTo("profile");
+        } else {
+            navigateTo("home");
+        }
+    }
 });
-
-
-
-
