@@ -1860,6 +1860,335 @@ function getPaymentCardActions(payment) {
     }
 }
 
+function renderPaymentList(containerId, payments, emptyMessage) {  
+    const container = document.getElementById(containerId);
+    if (!container) return; 
+
+    if (!Array.isArray(payments) || payments.length === 0) {  
+        container.innerHTML = `
+        <div class="col-span-full text-center bg-white p-12 rounded-lg shadow">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H7a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">Danh sách trống</h3>
+            <p class="mt-1 text-sm text-gray-500">${emptyMessage}</p>
+        </div>`;
+        return;
+    } 
+    
+    container.innerHTML = payments.map(p => {  
+        const formattedPrice = parseFloat(p.amount).toLocaleString('vi-VN') + " VNĐ";
+        const formattedDate = new Date(p.created_at).toLocaleDateString('vi-VN');
+         
+        const imageUrl = p.listing_image ? apiBaseUrl + p.listing_image : "https://placehold.co/400x400/e2e8f0/e2e8f0?text=Giao+dịch";
+        
+        return `
+        <div class="bg-white rounded-lg shadow-md overflow-hidden flex items-center">
+            <div class="w-32 h-32 flex-shrink-0 bg-gray-200">
+                <img src="${imageUrl}" alt="Sản phẩm" class="w-full h-full object-cover">
+            </div>
+            <div class="p-4 flex-grow">
+                <p class="text-sm text-gray-500">Giao dịch #${p.transaction_id}</p> 
+                <p class="text-sm text-gray-500">Phương thức: ${p.payment_method}</p>
+                <p class="text-indigo-600 font-bold text-xl">${formattedPrice}</p>
+                <p class="text-sm text-gray-500 mt-2">Ngày tạo: ${formattedDate}</p>
+            </div>
+            <div class="p-4 w-40 flex-shrink-0 flex justify-center items-center">
+                ${getPaymentCardActions(p)} </div>
+        </div>
+        `;
+    }).join("");
+ 
+    const handlePaymentClick = (event) => {
+        const button = event.currentTarget;
+        const transactionId = button.dataset.transactionId;
+         
+        const paymentToPay = window.allPaymentsData.find( 
+            p => p.transaction_id == transactionId  
+        );
+        
+        if (paymentToPay) {  
+            initiatePendingPayment(paymentToPay, button); 
+        } else {
+            console.error("Không tìm thấy dữ liệu thanh toán cho ID:", transactionId);
+            showToast("Lỗi: Không tìm thấy dữ liệu thanh toán.", "error");
+        }
+    };
+    const handleReviewClick = (event) => {
+        const button = event.currentTarget;
+        const transactionId = button.dataset.transactionId;
+        console.log("Review button clicked for transaction:", transactionId); 
+        const paymentData = window.allPaymentsData.find(p => p.transaction_id == transactionId);
+        if (paymentData) {
+            openReviewModal(transactionId, paymentData);  
+        } else {
+            showToast("Lỗi: Không tìm thấy thông tin giao dịch để đánh giá.", "error");
+        }
+    };
+
+    const handleReportClick = (event) => {
+        const button = event.currentTarget;
+        const transactionId = button.dataset.transactionId;
+        console.log("Report button clicked for transaction:", transactionId); 
+         const paymentData = window.allPaymentsData.find(p => p.transaction_id == transactionId);
+        if (paymentData) {
+            openReportModal(transactionId, paymentData);  
+        } else {
+             showToast("Lỗi: Không tìm thấy thông tin giao dịch để báo cáo.", "error");
+        }
+    };
+ 
+    container.querySelectorAll('.pay-pending-button').forEach(button => {
+        button.addEventListener('click', handlePaymentClick);
+    });
+    container.querySelectorAll('.retry-payment-button').forEach(button => {
+        button.addEventListener('click', handlePaymentClick);
+    });
+    container.querySelectorAll('.review-button').forEach(button => {
+        button.addEventListener('click', handleReviewClick);
+    });
+    container.querySelectorAll('.report-button').forEach(button => {
+        button.addEventListener('click', handleReportClick);
+    });
+}
+ 
+function openReviewModal(transactionId, paymentData) {
+    console.log("Opening Review modal for transaction:", transactionId, "Data:", paymentData);
+
+    const currentUserId = getUserIdFromToken();
+    if (!currentUserId) {
+        showToast("Lỗi: Không thể xác định người dùng hiện tại.", "error");
+        return;
+    }
+ 
+    if (!paymentData || !paymentData.buyer_id || !paymentData.seller_id) {
+         showToast("Lỗi: Thiếu thông tin người mua/bán trong dữ liệu giao dịch.", "error");
+         console.error("Missing buyer_id or seller_id in paymentData:", paymentData);
+         return;
+    }
+
+    let reviewedUserId = null;
+    let reviewedUserRole = "";  
+    if (currentUserId == paymentData.buyer_id) { 
+        reviewedUserId = paymentData.seller_id;   
+        reviewedUserRole = "người bán";
+    } else if (currentUserId == paymentData.seller_id) {  
+        reviewedUserId = paymentData.buyer_id;      
+        reviewedUserRole = "người mua";
+    } else {
+        showToast("Lỗi: Bạn không phải người mua hoặc người bán trong giao dịch này.", "error");
+        return;  
+    }
+ 
+    document.getElementById('review-transaction-id').value = transactionId;
+    document.getElementById('review-reviewed-user-id').value = reviewedUserId;
+    document.getElementById('review-modal-transaction-id').textContent = transactionId;
+ 
+    document.getElementById('review-modal-reviewed-username').textContent = `ID ${reviewedUserId} (${reviewedUserRole})`;
+ 
+    document.getElementById('review-form').reset();
+    document.getElementById('review-rating').value = "";  
+    openModal('review-modal');
+}
+ 
+function openReportModal(transactionId, paymentData) {
+    console.log("Opening Report modal for transaction:", transactionId, "Data:", paymentData);
+
+    const currentUserId = getUserIdFromToken();
+     if (!currentUserId) {
+        showToast("Lỗi: Không thể xác định người dùng hiện tại.", "error");
+        return;
+    }
+ 
+    if (!paymentData || !paymentData.buyer_id || !paymentData.seller_id) {
+         showToast("Lỗi: Thiếu thông tin người mua/bán trong dữ liệu giao dịch.", "error");
+         console.error("Missing buyer_id or seller_id in paymentData:", paymentData);
+         return;
+    }
+
+    let reportedUserId = null;
+    let reportedUserRole = "";
+ 
+    if (currentUserId == paymentData.buyer_id) {  
+        reportedUserId = paymentData.seller_id;   
+        reportedUserRole = "người bán";
+    } else if (currentUserId == paymentData.seller_id) {  
+        reportedUserId = paymentData.buyer_id;     
+        reportedUserRole = "người mua";
+    } else {
+        showToast("Lỗi: Bạn không phải người mua hoặc người bán trong giao dịch này.", "error");
+        return;
+    }
+ 
+    document.getElementById('report-transaction-id').value = transactionId;
+    document.getElementById('report-reported-user-id').value = reportedUserId;
+    document.getElementById('report-modal-transaction-id').textContent = transactionId;
+ 
+    document.getElementById('report-modal-reported-username').textContent = `ID ${reportedUserId} (${reportedUserRole})`;
+ 
+    document.getElementById('report-form').reset();
+    document.getElementById('report-reason').value = "";  
+    openModal('report-modal');
+}
+
+async function initiatePendingPayment(transaction, clickedButton) {
+    if (!transaction) {
+        showToast("Lỗi: Không có dữ liệu giao dịch.", "error");
+        return;
+    }
+
+    let originalButtonText = 'Thanh Toán Ngay'; 
+    if (clickedButton) {
+        originalButtonText = clickedButton.textContent;
+        clickedButton.disabled = true;
+        clickedButton.textContent = 'Đang xử lý...';
+    }
+
+    showLoading();
+
+    try {
+        const transactionId = transaction.transaction_id;
+        const response = await apiRequest(
+            `/transaction/api/transactions/${transactionId}/confirm-payment`,
+            'POST',
+            { payment_method: transaction.payment_method }
+        );
+
+        if (response && response.payment_url) { 
+            window.location.href = response.payment_url;
+        } else {
+            throw new Error(response.error || "Không thể khởi tạo thanh toán.");
+        }
+
+    } catch (error) {
+        console.error("Lỗi khi tạo thanh toán:", error);
+        showToast(`Lỗi: ${error.message}`, "error");
+ 
+        if (clickedButton) {
+            clickedButton.disabled = false;
+            clickedButton.textContent = originalButtonText;
+        }
+    } finally {
+        hideLoading();
+    }
+}
+
+function pollPaymentStatus(transactionId, startTime = Date.now(), maxWaitTime = 30000) {  
+    return new Promise(async (resolve, reject) => {
+        try { 
+            const response = await apiRequest(`/transaction/api/transactions/${transactionId}//payment-status`, 'GET');
+            
+            if (response && response.status) { 
+                if (response.status === 'completed' || response.status === 'failed') {
+                    resolve(response.status);  
+                } else { 
+                    if (Date.now() - startTime > maxWaitTime) { 
+                        reject(new Error("Kiểm tra trạng thái quá lâu. Vui lòng tải lại trang."));
+                    } else { 
+                        setTimeout(() => {
+                            pollPaymentStatus(transactionId, startTime, maxWaitTime)
+                                .then(resolve)  
+                                .catch(reject);  
+                        }, 2000);  
+                    }
+                }
+            } else {
+                throw new Error(response.error || "Không thể lấy trạng thái giao dịch.");
+            }
+        } catch (error) {
+            // Lỗi khi gọi API
+            reject(error);
+        }
+    });
+}
+
+async function loadPaymentResult() {  
+    const successIcon = `...`;  
+    const failIcon = `...`;  
+    const loadingIcon = `<svg class="animate-spin h-12 w-12 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+
+    const iconEl = document.getElementById('result-icon-container');
+    const titleEl = document.getElementById('result-payment-title');
+    const messageEl = document.getElementById('result-payment-message');
+    const detailsEl = document.getElementById('result-payment-details');
+
+    titleEl.classList.remove('text-green-600', 'text-red-600', 'text-gray-700');
+ 
+    let urlParams;
+    let transactionId;
+    let orderId;
+    let amount;
+    let finalStatus;           
+    let displayMessage;        
+
+    try { 
+        let queryString = '';
+        if (window.location.hash.includes('?')) {
+            queryString = window.location.hash.split('?')[1];
+        } else if (window.location.search) {
+            queryString = window.location.search.slice(1);
+        }
+        urlParams = new URLSearchParams(queryString);
+        orderId = urlParams.get('orderId');
+        amount = urlParams.get('amount');
+        displayMessage = urlParams.get('message') || "Không có thông báo.";  
+
+        if (!orderId) {
+            throw new Error("Không tìm thấy orderId trong URL.");
+        }
+ 
+        transactionId = parseInt(orderId.split('-')[0], 10);
+        if (isNaN(transactionId)) {
+            throw new Error("Định dạng orderId không hợp lệ.");
+        } 
+        iconEl.innerHTML = loadingIcon;  
+        titleEl.textContent = "Đang xác nhận thanh toán...";
+        titleEl.classList.add('text-gray-700');
+        messageEl.textContent = "Vui lòng chờ. Hệ thống đang xác nhận với máy chủ...";
+         
+        let tempDetails = `<div><strong>Mã giao dịch:</strong> #${transactionId}</div>`;
+        if (amount) {
+             const formattedAmount = new Intl.NumberFormat('vi-VN').format(amount);
+             tempDetails += `<div><strong>Số tiền:</strong> ${formattedAmount} VNĐ</div>`;
+        }
+        detailsEl.innerHTML = tempDetails; 
+        finalStatus = await pollPaymentStatus(transactionId);
+
+    } catch (error) { 
+        console.error("Lỗi khi xử lý kết quả thanh toán:", error);
+        finalStatus = 'failed';  
+        displayMessage = error.message || "Không thể xác nhận giao dịch.";
+    }
+ 
+    titleEl.classList.remove('text-gray-700');  
+    
+    if (finalStatus === 'completed') {
+        iconEl.innerHTML = successIcon;
+        titleEl.textContent = "Thanh toán thành công!";
+        titleEl.classList.add('text-green-600');
+        messageEl.textContent = decodeURIComponent(displayMessage).replace(/\+/g, ' ');
+    } else { 
+        iconEl.innerHTML = failIcon;
+        titleEl.textContent = "Thanh toán thất bại!";
+        titleEl.classList.add('text-red-600');
+        messageEl.textContent = decodeURIComponent(displayMessage).replace(/\+/g, ' ');
+    }
+     
+    let detailsHTML = '';
+    if (orderId) {
+        const originalOrderId = orderId.split('-')[0];
+        detailsHTML += `<div><strong>Mã giao dịch:</strong> #${originalOrderId}</div>`;
+    }
+    if (amount) {
+        const formattedAmount = new Intl.NumberFormat('vi-VN').format(amount);
+        detailsHTML += `<div><strong>Số tiền:</strong> ${formattedAmount} VNĐ</div>`;
+    } 
+    const resultCode = urlParams.get('resultCode') || (finalStatus === 'completed' ? '0' : '99');
+    detailsHTML += `<div><strong>Mã kết quả:</strong> ${resultCode}</div>`;
+
+    detailsEl.innerHTML = detailsHTML;
+}
+
 
 
 
