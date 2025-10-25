@@ -1563,6 +1563,302 @@ async function buyListing(listingId, sellerId, finalPrice) {
           hideLoading();
       }
   }
+  /**
+ * Logic 4: Mở modal thanh toán.
+ * @param {object} transaction - Đối tượng giao dịch (từ API).
+ */
+function openPaymentModal(transaction) {
+    document.getElementById('payment-transaction-id').value = transaction.transaction_id;
+
+    const price = parseFloat(transaction.final_price) || 0;
+    document.getElementById('payment-amount-display').dataset.amount = price; 
+    const formattedPrice = new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND'
+    }).format(price);
+
+    document.getElementById('payment-amount-display').textContent = formattedPrice;
+    
+    // Reset form
+    document.getElementById('payment-form').reset();
+    document.getElementById('payment-method-select').value = "";
+
+    // 🔍 Kiểm tra hợp đồng (để xác định có bật nút thanh toán không)
+    apiRequest(`/transaction/api/transactions/${transaction.transaction_id}/contract`, 'GET', null, 'transaction')
+        .then(res => {
+            const payBtn = document.getElementById('confirm-payment-button');
+            if (res && res.contract) {
+                const bothSigned = res.contract.signed_by_buyer && res.contract.signed_by_seller;
+                if (!bothSigned) {
+                    payBtn.disabled = true;
+                    payBtn.textContent = "Chờ hai bên ký xong";
+                    payBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    payBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                } else {
+                    payBtn.disabled = false;
+                    payBtn.textContent = "Xác nhận thanh toán";
+                    payBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                    payBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                }
+            }
+        });
+
+    openModal('payment-modal');
+}
+
+document.getElementById('payment-form').addEventListener('submit', async function (e) {
+    e.preventDefault();  
+
+    const transactionId = document.getElementById('payment-transaction-id').value;
+    const method = document.getElementById('payment-method-select').value;
+    const amount = parseFloat(document.getElementById('payment-amount-display').dataset.amount) || 0;
+
+    if (!method) {
+        showToast("Vui lòng chọn phương thức thanh toán!", "error");
+        return;
+    }
+
+    const payBtn = document.getElementById('confirm-payment-button');
+    payBtn.disabled = true;
+    payBtn.textContent = "Đang xử lý...";
+
+    showLoading();
+
+    try {
+        const res = await apiRequest(
+            `/transaction/api/transactions/${transactionId}/payment`,
+            'POST',
+            { payment_method: method ,
+              amount: amount
+            },
+            'transaction'
+        );
+
+        if (res && res.payment && !res.error) {
+            showToast("Thanh toán thành công!", "success");
+            closeModal('payment-modal');
+            navigateTo('transactions');
+        } else {
+            throw new Error(res?.error || "Phản hồi không hợp lệ từ máy chủ.");
+        }
+
+    } catch (err) {
+        console.error("Lỗi khi thanh toán:", err);
+        showToast(`Lỗi khi thanh toán: ${err.message}`, "error");
+        payBtn.disabled = false;
+        payBtn.textContent = "Xác Nhận Thanh Toán";
+    } finally {
+        hideLoading();
+    }
+});
+
+async function openPaymentStatusModal(transactionId) {
+    showLoading();
+    // Lấy container chứa nút trước
+    const actionContainer = document.getElementById('status-modal-actions');
+    actionContainer.innerHTML = ''; // Xóa các nút cũ (nếu có)
+
+    try {
+        const res = await apiRequest(
+            `/transaction/api/transactions/${transactionId}/payment/status`,
+            'GET',
+            null // Không cần service name nếu apiRequest tự xử lý
+        );
+
+        if (res && res.payment) {
+            const p = res.payment; // Đây là paymentData
+
+            // Điền thông tin vào modal như cũ
+            document.getElementById('status-transaction-id').textContent = `#${p.transaction_id}`;
+            document.getElementById('status-payment-amount').textContent = new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND'
+            }).format(p.amount || 0);
+            document.getElementById('status-payment-method').textContent = formatPaymentMethod(p.payment_method);
+            document.getElementById('status-payment-status').textContent = formatPaymentStatus(p.payment_status);
+            document.getElementById('status-payment-status').className = getStatusColorClass(p.payment_status); // Giữ lại dòng này để đổi màu chữ trạng thái
+            document.getElementById('status-payment-time').textContent = p.created_at ? new Date(p.created_at).toLocaleString('vi-VN') : '---';
+
+            // --- THÊM LOGIC HIỂN THỊ NÚT ---
+            if (p.payment_status === 'completed') {
+                actionContainer.innerHTML = `
+                    <button data-transaction-id="${p.transaction_id}"
+                            class="review-status-button bg-blue-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                        Đánh giá
+                    </button>
+                    <button data-transaction-id="${p.transaction_id}"
+                            class="report-status-button bg-red-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">
+                        Báo cáo
+                    </button>
+                `;
+
+                // Gắn sự kiện ngay lập tức cho các nút vừa tạo
+                actionContainer.querySelector('.review-status-button').addEventListener('click', () => {
+                    // Cần có buyer_id và seller_id trong 'p' để hàm này hoạt động
+                    if (p.buyer_id && p.seller_id) {
+                         closeModal('payment-status-modal'); // Đóng modal hiện tại
+                         openReviewModal(p.transaction_id, p); // Mở modal review
+                    } else {
+                        showToast("Thiếu thông tin buyer/seller để đánh giá.", "error");
+                        console.error("Missing buyer_id/seller_id in payment status response:", p);
+                    }
+                });
+                actionContainer.querySelector('.report-status-button').addEventListener('click', () => {
+                     // Cần có buyer_id và seller_id trong 'p' để hàm này hoạt động
+                     if (p.buyer_id && p.seller_id) {
+                        closeModal('payment-status-modal'); // Đóng modal hiện tại
+                        openReportModal(p.transaction_id, p); // Mở modal report
+                     } else {
+                         showToast("Thiếu thông tin buyer/seller để báo cáo.", "error");
+                         console.error("Missing buyer_id/seller_id in payment status response:", p);
+                     }
+                });
+            } else {
+                // Nếu không phải 'completed', đảm bảo không có nút nào
+                actionContainer.innerHTML = '';
+            }
+            // ---------------------------------
+
+            openModal('payment-status-modal'); // Mở modal sau khi đã chuẩn bị xong
+        } else {
+             // Sửa lại: Ném lỗi để catch xử lý chung
+             throw new Error(res?.error || "Không tìm thấy thông tin thanh toán!");
+        }
+
+    } catch (err) {
+        console.error("Lỗi khi xem tình trạng thanh toán:", err);
+        // Hiển thị lỗi từ API hoặc lỗi mặc định
+        showToast(err.message || "Có lỗi xảy ra khi tải trạng thái thanh toán.", "error");
+    } finally {
+        hideLoading();
+    }
+}
+
+// Helper để format kiểu hiển thị đẹp hơn
+function formatPaymentMethod(method) {
+  switch (method) {
+    case 'e-wallet': return 'Ví điện tử';
+    case 'bank': return 'Chuyển khoản ngân hàng';
+    case 'cash': return 'Tiền mặt';
+    default: return 'Không xác định';
+  }
+}
+
+function formatPaymentStatus(status) {
+  switch (status) {
+    case 'initiated': return 'Đang xử lý';
+    case 'completed': return 'Hoàn tất';
+    case 'pending': return 'Đã chuyển khoản Admin'
+    case 'failed': return 'Thất bại';
+    default: return 'Không xác định';
+  }
+}
+
+function getStatusColorClass(status) {
+  switch (status) {
+    case 'pending': return 'text-base font-semibold text-yellow-600';
+    case 'completed': return 'text-base font-semibold text-green-600';
+    case 'failed': return 'text-base font-semibold text-red-600';
+    default: return 'text-base font-semibold text-gray-600';
+  }
+}
+
+
+if (typeof getUserIdFromToken === 'undefined') {
+    function getUserIdFromToken() {
+      const token = localStorage.getItem('jwt_token');
+      if (!token) return null;
+      try {
+          const payloadBase64 = token.split('.')[1];
+          const payload = JSON.parse(atob(payloadBase64));
+          return Number(payload.sub);
+      } catch (e) {
+          console.error('Không thể giải mã token:', e);
+          return null;
+      }
+  }
+}
+
+async function loadPaymentSections() {
+    showLoading(); 
+    const containers = ['initiated-container', 'pending-container', 'completed-container', 'failed-container'];
+    containers.forEach(id => {
+        const container = document.getElementById(id);
+        if (container) {
+            container.innerHTML = `<div class="col-span-full text-center bg-white p-12 rounded-lg shadow"><p class="text-gray-500">Đang tải dữ liệu...</p></div>`;
+        }
+    });
+
+    try { 
+        // 1. API trả về một danh sách các "Payments"
+        const allPayments = await apiRequest("/transaction/api/my-transactions");  
+        
+        // 2. Lưu trữ chúng dưới tên "allPaymentsData"
+        window.allPaymentsData = Array.isArray(allPayments) ? allPayments : [];
+    
+        // 3. Lọc danh sách "Payments" (dùng 'p' cho payment)
+        const initiated = window.allPaymentsData.filter(p => p.payment_status === 'initiated');
+        const pending = window.allPaymentsData.filter(p => p.payment_status === 'pending');
+        const completed = window.allPaymentsData.filter(p => p.payment_status === 'completed');
+        const failed = window.allPaymentsData.filter(p => p.payment_status === 'failed');
+    
+        renderPaymentList("initiated-container", initiated, "Bạn không có khoản nào chờ thanh toán.");
+        renderPaymentList("pending-container", pending, "Bạn không có khoản nào đang chờ duyệt.");
+        renderPaymentList("completed-container", completed, "Bạn không có giao dịch nào hoàn thành.");
+        renderPaymentList("failed-container", failed, "Bạn không có giao dịch nào thất bại.");
+
+    } catch (error) {
+        console.error("Failed to load payment sections:", error); 
+        renderPaymentList("initiated-container", [], "Không thể tải dữ liệu.");
+        renderPaymentList("pending-container", [], "Không thể tải dữ liệu.");
+        renderPaymentList("completed-container", [], "Không thể tải dữ liệu.");
+        renderPaymentList("failed-container", [], "Không thể tải dữ liệu.");
+    } finally {
+        hideLoading();
+    }
+}
+
+function getPaymentCardActions(payment) {  
+    switch (payment.payment_status) {  
+        case 'initiated':
+            return `
+            <button data-transaction-id="${payment.transaction_id}" class="pay-pending-button bg-green-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+                Thanh Toán Ngay
+            </button>`;     
+        case 'pending':
+            return `
+            <div class="text-center">
+                <p class="text-sm font-medium text-blue-600">Đang chờ duyệt</p>
+                <p class="text-xs text-gray-500">(Đã thanh toán)</p>
+            </div>`;
+        case 'completed':
+            return `
+            <div class="text-center space-y-2">
+                <div>
+                    <p class="text-sm font-medium text-green-600">Đã hoàn thành</p>
+                    <p class="text-xs text-gray-500">(Admin đã duyệt)</p>
+                </div>
+                <div class="flex flex-col space-y-1">
+                    <button data-transaction-id="${payment.transaction_id}" class="review-button bg-blue-500 text-white text-xs font-bold py-1 px-3 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                        Đánh giá
+                    </button>
+                    <button data-transaction-id="${payment.transaction_id}" class="report-button bg-red-500 text-white text-xs font-bold py-1 px-3 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">
+                        Báo cáo
+                    </button>
+                </div>
+            </div>`;
+        case 'failed':
+            return `
+            <div class="text-center">
+                <p class="text-sm font-medium text-red-600">Thất bại</p>
+                <button data-transaction-id="${payment.transaction_id}" class="retry-payment-button mt-2 bg-gray-500 text-white text-xs font-bold py-1 px-3 rounded hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">
+                    Thử lại
+                </button>
+            </div>`;  
+        default:
+            return `<p class="text-sm text-gray-500">${payment.payment_status}</p>`;  
+    }
+}
 
 
 
