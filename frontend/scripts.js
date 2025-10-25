@@ -1290,7 +1290,279 @@ async function viewAuctionDetail(auctionId) {
         modalContent.innerHTML = '<p class="text-red-500">Đã xảy ra lỗi khi tải dữ liệu.</p>';
     }
 }
+function renderTransactions(containerId, transactions, emptyMessage) {
+    const container = document.getElementById(containerId);
+    if (!container) return; 
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full text-center bg-white p-12 rounded-lg shadow">
+                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H7a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-900">Danh sách trống</h3>
+                <p class="mt-1 text-sm text-gray-500">${emptyMessage}</p>
+            </div>`; 
+        if (transactions && !Array.isArray(transactions)) {
+            console.warn("renderTransactions: Dữ liệu nhận được không phải là một mảng:", transactions);
+        }
+        return;
+    } 
+    container.innerHTML = transactions.map(t => {
+        const isBuyer = getUserIdFromToken() == t.buyer_id;
+        const isSeller = getUserIdFromToken() == t.seller_id;
+        const formattedDate = new Date(t.created_at).toLocaleDateString('vi-VN');
+        const imageUrl = t.listing_image ? apiBaseUrl + t.listing_image : "https://placehold.co/400x400/e2e8f0/e2e8f0?text=Giao+dịch";
 
+        return `
+        <div class="bg-white rounded-lg shadow-md overflow-hidden flex items-center">
+            <div class="w-32 h-32 flex-shrink-0 bg-gray-200">
+                <img src="${imageUrl}" alt="${t.listing_id}" class="w-full h-full object-cover">
+            </div>
+            <div class="p-4 flex-grow">
+                <p class="text-indigo-600 font-bold text-xl">ID người bán(bạn): ${t.seller_id} || ID người mua: ${t.buyer_id}</p>
+                <p class="text-sm text-gray-500 mt-2">Ngày giao dịch: ${formattedDate}</p>
+                <button onclick="viewDetail(${t.listing_id})" class="text-gray-400 text-[0.6rem] rounded hover:text-indigo-600">
+                    Xem chi tiết sản phẩm
+                </button>
+                </div>           
+            <div class="p-4">
+                <button 
+                    onclick='viewContract(${t.transaction_id})'
+                    class="bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-indigo-600">
+                    Xem hợp đồng
+                </button>
+                ${isSeller ? `
+                <button 
+                    onclick="openPaymentStatusModal(${t.transaction_id})" 
+                    class="bg-green-600 text-white text-sm font-bold py-2 px-4 rounded hover:bg-green-700">
+                    Trạng thái
+                </button>
+            ` : ''}
+                <button onclick="cancelTransaction(${t.transaction_id})" class="bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded hover:bg-indigo-600">
+                    Hủy giao dịch
+                </button>
+            </div>
+        </div>
+        `;
+    }).join("");
+}
+
+async function viewContract(transactionId) {
+    showLoading();
+    try {
+        const response = await apiRequest(
+            `/transaction/api/transactions/${transactionId}/contract`,
+            'GET',
+            null,
+            'transaction'
+        );
+
+        if (response && response.transaction && response.contract) {
+            openContractModal(response.transaction, response.contract);
+        } else {
+            throw new Error(response.error || 'Không thể tải hợp đồng.');
+        }
+    } catch (error) {
+        console.error('Lỗi khi xem hợp đồng:', error);
+        showToast(`Lỗi: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+
+async function cancelTransaction(id) {
+    if (confirm("Bạn có chắc chắn hủy giao dịch này?")) {
+    try {
+      await apiRequest(`/transaction/api/transactions/${id}`, "DELETE");
+      showToast("Hủy giao dịch thành công.");
+      loadMyTransactions();
+    } catch (error) {}
+  }
+}
+async function loadMyTransactions() {
+    showLoading(); 
+    try { 
+        const salesTransactions = await apiRequest("/transaction/api/transactions-seller"); 
+        renderTransactions("sales-transactions-container", salesTransactions, "Bạn chưa có giao dịch bán nào.");
+    
+    } catch (error) { 
+        console.error("Failed to load sales transactions:", error);
+        const container = document.getElementById("sales-transactions-container");
+        if (container) container.innerHTML = `<div class="bg-white p-6 rounded-lg shadow text-center"><p class="text-red-500">Lỗi tải giao dịch bán.</p></div>`;
+    } 
+    try {
+        const purchaseTransactions = await apiRequest("/transaction/api/transactions-buyer");
+        renderTransactions("purchase-transactions-container", purchaseTransactions, "Bạn chưa có giao dịch mua nào.");
+    
+    } catch (error) {
+        console.error("Failed to load purchase transactions:", error);
+        const container = document.getElementById("purchase-transactions-container");
+        if (container) container.innerHTML = `<div class="bg-white p-6 rounded-lg shadow text-center"><p class="text-red-500">Lỗi tải giao dịch mua.</p></div>`;
+    }
+
+    hideLoading();
+}
+
+
+async function buyListing(listingId, sellerId, finalPrice) { 
+    const token = localStorage.getItem('jwt_token'); 
+    
+    if (!token) { 
+        showToast('Bạn cần đăng nhập để thực hiện giao dịch.', 'error');
+        return;  
+    } 
+    const buyButton = document.getElementById(`buy-listing`);  
+    
+    let originalButtonText = 'Mua Ngay'; 
+    if (buyButton) {
+        originalButtonText = buyButton.textContent;
+        buyButton.disabled = true;
+        buyButton.textContent = 'Đang tạo...';
+    } 
+    showLoading();
+
+    try {
+        const payload = {
+            listing_id: listingId,
+            seller_id: sellerId,
+            final_price: finalPrice
+        };
+        
+        const response = await apiRequest(
+            `/transaction/api/transactions`, 
+            'POST',
+            payload,
+            'transaction'  
+        );
+        if (response && response.transaction && response.contract) {
+            showToast(response.message || 'Đã tạo giao dịch. Vui lòng ký hợp đồng.');
+            closeModal('detail-modal');
+            openContractModal(response.transaction, response.contract);
+        } else { 
+            throw new Error(response.error || 'Phản hồi từ máy chủ không hợp lệ.');
+        }
+    } catch (error) { 
+        console.error('Lỗi khi tạo giao dịch:', error); 
+        const errorMessage = error.message || 'Đã xảy ra lỗi. Vui lòng thử lại.';
+        showToast(`Tạo giao dịch thất bại: ${errorMessage}`, 'error');
+    } finally { 
+        hideLoading();
+        if (buyButton) {
+            buyButton.disabled = false;
+            buyButton.textContent = originalButtonText;
+        } 
+    }
+}
+
+  function openContractModal(transaction, contract) {
+      document.getElementById('contract-transaction-id').value = transaction.transaction_id;
+      document.getElementById('contract-terms-content').textContent = contract.term || 'Không có điều khoản hợp đồng.';
+      const currentUserId = getUserIdFromToken();
+      const buyerStatus = document.getElementById('buyer-signature-status');
+      const sellerStatus = document.getElementById('seller-signature-status');
+      let buyerText = `Người mua (ID: ${transaction.buyer_id}): ${contract.signed_by_buyer ? 'Đã ký' : 'Chưa ký'}`;
+      let sellerText = `Người bán (ID: ${transaction.seller_id}): ${contract.signed_by_seller ? 'Đã ký' : 'Chưa ký'}`;
+      if (currentUserId == transaction.buyer_id) buyerText += " (Bạn)";
+      if (currentUserId == transaction.seller_id) sellerText += " (Bạn)";
+      buyerStatus.textContent = buyerText;
+      sellerStatus.textContent = sellerText;
+      buyerStatus.className = contract.signed_by_buyer ? 'text-sm font-medium text-green-600' : 'text-sm font-medium text-red-600';
+      sellerStatus.className = contract.signed_by_seller ? 'text-sm font-medium text-green-600' : 'text-sm font-medium text-red-600';
+      const signButton = document.getElementById('sign-contract-button');
+      let userHasSigned = false;
+      if (currentUserId == transaction.buyer_id && contract.signed_by_buyer) {
+          userHasSigned = true;
+      }
+      if (currentUserId == transaction.seller_id && contract.signed_by_seller) {
+          userHasSigned = true;
+      }
+
+      if (userHasSigned) { 
+          signButton.disabled = true;
+          signButton.textContent = 'Bạn đã ký';
+          signButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+          signButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+          signButton.onclick = null;  
+      } else { 
+          signButton.disabled = false;
+          signButton.textContent = 'Xác Nhận & Ký Hợp Đồng';
+          signButton.classList.add('bg-green-600', 'hover:bg-green-700');
+          signButton.classList.remove('bg-gray-400', 'cursor-not-allowed'); 
+          signButton.onclick = () => signContract(transaction.transaction_id, transaction); 
+      }
+      document.getElementById('contract-loading-spinner').style.display = 'none';
+      document.getElementById('contract-content-wrapper').style.display = 'block';
+      openModal('contract-modal');
+  }
+  async function signContract(transactionId, transaction) {
+      const signButton = document.getElementById('sign-contract-button');
+      signButton.disabled = true;
+      signButton.textContent = 'Đang ký...';
+      showLoading();
+      const currentUserId = getUserIdFromToken();
+
+      try {
+          // 1. Gọi API để ký
+          const response = await apiRequest(
+              `/transaction/api/transactions/${transactionId}/contract/sign`,
+              'POST',
+              {}, // Không cần body
+              'transaction' // Chỉ định service 'transaction'
+          );
+
+          // 2. Xử lý phản hồi thành công
+          if (response && response.contract) {
+              showToast(response.message || 'Ký hợp đồng thành công!');
+              
+              // 3. Cập nhật lại UI modal hợp đồng (chỉ trạng thái)
+              const buyerStatus = document.getElementById('buyer-signature-status');
+              const sellerStatus = document.getElementById('seller-signature-status');
+              
+              // Cập nhật trạng thái
+              let buyerText = `Người mua: ${response.contract.signed_by_buyer ? 'Đã ký' : 'Chưa ký'}`;
+              let sellerText = `Người bán: ${response.contract.signed_by_seller ? 'Đã ký' : 'Chưa ký'}`;
+              if (currentUserId == transaction.buyer_id) buyerText += " (Bạn)";
+              if (currentUserId == transaction.seller_id) sellerText += " (Bạn)";
+
+              buyerStatus.textContent = buyerText;
+              sellerStatus.textContent = sellerText;
+              buyerStatus.className = response.contract.signed_by_buyer ? 'text-sm font-medium text-green-600' : 'text-sm font-medium text-red-600';
+              sellerStatus.className = response.contract.signed_by_seller ? 'text-sm font-medium text-green-600' : 'text-sm font-medium text-red-600';
+
+              // Vô hiệu hóa nút vì user này vừa ký xong
+              signButton.disabled = true;
+              signButton.textContent = 'Bạn đã ký';
+              signButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+              signButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+              signButton.onclick = null;
+              if (response.contract.signed_by_buyer && response.contract.signed_by_seller) {
+                  showToast('Cả hai bên đã ký! Sẵn sàng thanh toán.', 'success');
+                  closeModal('contract-modal');
+                  
+                  // Logic 4: Mở modal thanh toán (chỉ cho người mua)
+                  if (currentUserId == transaction.buyer_id) {
+                      // Truyền transaction (chứa final_price) vào
+                      openPaymentModal(transaction); 
+                  } else {
+                      // Nếu là người bán, chỉ cần đóng modal và điều hướng
+                      navigateTo('transactions');
+                  }
+              }
+          } else {
+              throw new Error(response.error || 'Phản hồi ký không hợp lệ.');
+          }
+
+      } catch (error) {
+          console.error('Lỗi khi ký hợp đồng:', error);
+          showToast(`Lỗi: ${error.message}`, 'error');
+          // Kích hoạt lại nút nếu có lỗi
+          signButton.disabled = false;
+          signButton.textContent = 'Xác Nhận & Ký Hợp Đồng';
+      } finally {
+          hideLoading();
+      }
+  }
 
 
 
