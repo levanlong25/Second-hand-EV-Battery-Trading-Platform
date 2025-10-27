@@ -25,6 +25,7 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "secretkey")
+    app.config['INTERNAL_SERVICE_TOKEN'] = os.getenv('INTERNAL_SERVICE_TOKEN')
  
     db.init_app(app) 
     migrate.init_app(app, db)
@@ -40,7 +41,9 @@ def create_app():
         print(f">>> User Service: Could not connect to Redis: {e}")
  
     from controllers.controllers_api import api_bp
+    from controllers.internal_controller import internal_bp
     app.register_blueprint(api_bp)
+    app.register_blueprint(internal_bp)
  
     @app.cli.command("create-admin")
     @click.argument("username")

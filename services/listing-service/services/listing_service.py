@@ -3,9 +3,9 @@ from models.listing import Listing
 from models.vehicle import Vehicle
 from models.battery import Battery
 from models.listing_image import ListingImage
-from models.report import Report
 from models.watchlist import WatchList
 import traceback
+from sqlalchemy import and_, or_
 
 class ListingService:
     # --- CORE LISTING FUNCTIONS ---
@@ -65,10 +65,9 @@ class ListingService:
 
         if listing.seller_id != user_id and user_role != 'admin':
             return False, "You don't have permission to delete this listing."
-
-        try:
-            # SQLAlchemy tự động xử lý việc ngắt kết nối quan hệ.
-            # Không cần gán listing.vehicle.listing_id = None nữa.
+        if listing.status == 'sold' and user_role != 'admin': 
+             return False, "Không thể xóa tin đăng đã bán."
+        try: 
             db.session.delete(listing)
             db.session.commit()
             return True, "Listing removed successfully."
@@ -96,6 +95,56 @@ class ListingService:
     def get_all_listings():
         """Lấy tất cả tin đăng đã được duyệt (công khai)."""
         return Listing.query.filter(Listing.status == 'available').order_by(Listing.created_at.desc()).all()
+    @staticmethod
+    def filter_listings(filters: dict): 
+        
+        query = Listing.query.filter(Listing.status == 'available')
+ 
+        if filters.get("listing_type"):
+            query = query.filter(Listing.listing_type == filters["listing_type"])
+ 
+        if filters.get("listing_type") == "vehicle":
+            query = query.join(Vehicle, Listing.vehicle_id == Vehicle.vehicle_id)
+        elif filters.get("listing_type") == "battery":
+            query = query.join(Battery, Listing.battery_id == Battery.battery_id)
+ 
+        if filters.get("title"):
+            title = f"%{filters['title']}%"
+            query = query.filter(Listing.title.ilike(title))
+ 
+        min_price = filters.get("min_price")
+        max_price = filters.get("max_price")
+        if min_price:
+            query = query.filter(Listing.price >= float(min_price))
+        if max_price:
+            query = query.filter(Listing.price <= float(max_price))
+ 
+        if filters.get("listing_type") == "vehicle":
+            if filters.get("brand"):
+                query = query.filter(Vehicle.brand.ilike(f"%{filters['brand']}%"))
+            if filters.get("model"):
+                query = query.filter(Vehicle.model.ilike(f"%{filters['model']}%"))
+            if filters.get("year"):
+                query = query.filter(Vehicle.year == int(filters["year"]))
+            if filters.get("mileage_min"):
+                query = query.filter(Vehicle.mileage >= int(filters["mileage_min"]))
+            if filters.get("mileage_max"):
+                query = query.filter(Vehicle.mileage <= int(filters["mileage_max"]))
+ 
+        if filters.get("listing_type") == "battery":
+            if filters.get("manufacturer"):
+                query = query.filter(Battery.manufacturer.ilike(f"%{filters['manufacturer']}%"))
+            if filters.get("capacity_min"):
+                query = query.filter(Battery.capacity_kwh >= float(filters["capacity_min"]))
+            if filters.get("capacity_max"):
+                query = query.filter(Battery.capacity_kwh <= float(filters["capacity_max"]))
+            if filters.get("health_min"):
+                query = query.filter(Battery.health_percent >= float(filters["health_min"]))
+            if filters.get("health_max"):
+                query = query.filter(Battery.health_percent <= float(filters["health_max"]))
+ 
+        query = query.order_by(Listing.created_at.desc()) 
+        return query.all()
 
     @staticmethod
     def get_listing_by_id(listing_id):
@@ -170,17 +219,3 @@ class ListingService:
             ListingService.get_listing_by_id(item.listing_id)
             for item in WatchList.query.filter_by(user_id=user_id).all()
         ]
-    # --- REPORT FUNCTIONS ---
-    @staticmethod
-    def create_report(reporter_id, listing_id, report_type, description):
-        if not Listing.query.get(listing_id): return None, "Listing not found."
-        
-        new_report = Report(reporter_id=reporter_id, listing_id=listing_id, report_type=report_type, description=description)
-        db.session.add(new_report)
-        db.session.commit()
-        return new_report, "Report submitted successfully."
-        
-    @staticmethod
-    def get_reports_by_listing_id(listing_id):
-        """(Admin) Lấy tất cả report của một tin đăng."""
-        return Report.query.filter_by(listing_id=listing_id).order_by(Report.created_at.desc()).all()

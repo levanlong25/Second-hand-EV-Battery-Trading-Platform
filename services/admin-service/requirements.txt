@@ -1,0 +1,6 @@
+Flask
+Flask-JWT-Extended
+Flask-Cors 
+requests
+python-dotenv
+gunicorn

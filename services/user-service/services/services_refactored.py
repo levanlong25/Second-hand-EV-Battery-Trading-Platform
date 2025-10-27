@@ -52,8 +52,7 @@ class ProfileService:
         """Xóa profile khi user bị xóa."""
         profile = Profile.query.filter_by(user_id=user_id).first()
         if profile:
-            db.session.delete(profile)
-            # Commit sẽ được thực hiện trong hàm delete_user
+            db.session.delete(profile) 
         return True
 
 class UserService:
@@ -71,13 +70,11 @@ class UserService:
         user.set_password(password)
         db.session.add(user)
         db.session.flush()
-
-        # *** GIỮ NGUYÊN LOGIC GỌI TRỰC TIẾP THEO YÊU CẦU ***
+ 
         profile, error = ProfileService.create_empty_profile(user.user_id, user.username)
         if error:
             db.session.rollback()
-            return None, error
-        # *****************************************************
+            return None, error 
             
         db.session.commit()
         return user, None
@@ -121,8 +118,7 @@ class UserService:
         user = UserService.get_user_by_id(user_id)
         if not user:
             return False, "User not found"
-        
-        # Xóa profile liên quan trước
+         
         ProfileService.delete_profile_by_user_id(user_id)
         
         db.session.delete(user)
@@ -169,8 +165,7 @@ class UserService:
         if not user:
             return False, "Email does not exist"
         
-        otp = ''.join(secrets.choice(string.digits) for _ in range(6))
-        # Dùng Redis để lưu OTP, an toàn và hiệu quả hơn, hết hạn sau 5 phút
+        otp = ''.join(secrets.choice(string.digits) for _ in range(6)) 
         r.setex(f"otp:{email}", 300, otp)
         
         try:
@@ -186,14 +181,12 @@ class UserService:
                 server.sendmail(UserService.SENDER_EMAIL, email, msg.as_string())
             
             return True, "OTP has been sent to your email."
-        except Exception as e:
-            # Không nên lộ lỗi chi tiết ra cho người dùng
+        except Exception as e: 
             print(f"ERROR sending email: {e}")
             return False, "Failed to send OTP email."
 
     @staticmethod
-    def verify_otp_and_reset_password(email, input_otp, new_password):
-        # Lấy OTP từ Redis
+    def verify_otp_and_reset_password(email, input_otp, new_password): 
         saved_otp = r.get(f"otp:{email}")
         if not saved_otp or input_otp != saved_otp:
             return False, "Invalid or expired OTP."

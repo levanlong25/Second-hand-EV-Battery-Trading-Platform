@@ -17,7 +17,6 @@ from models.vehicle import Vehicle
 from models.battery import Battery
 from models.listing import Listing
 from models.listing_image import ListingImage
-from models.report import Report
 from models.watchlist import WatchList
 
 def create_app():
@@ -28,13 +27,16 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "a_very_secret_key")
     app.config['UPLOAD_FOLDER'] = 'uploads'
+    app.config['INTERNAL_SERVICE_TOKEN'] = os.getenv('INTERNAL_SERVICE_TOKEN')
 
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
 
     from controllers.listing_controller import api_bp
+    from controllers.internal_controller import internal_bp
     app.register_blueprint(api_bp)
+    app.register_blueprint(internal_bp)
 
     @app.errorhandler(500)
     def handle_internal_server_error(e):

@@ -81,6 +81,43 @@ services:
       timeout: 5s
       retries: 5
 
+  db-report:
+    image: postgres:14-alpine
+    container_name: report_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${REPORT_DB}
+    ports:
+      - "5438:5432"
+    volumes:
+      - report_data:/var/lib/postgresql/data
+    networks:
+      - ev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${REPORT_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  db-review:
+    image: postgres:14-alpine
+    container_name: review_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${REVIEW_DB}
+    ports:
+      - "5437:5432"
+    volumes:
+      - review_data:/var/lib/postgresql/data
+    networks:
+      - ev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${REVIEW_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # ========== REDIS CACHE ==========
   redis:
     image: redis:alpine
@@ -103,11 +140,47 @@ services:
       - REDIS_URL=redis://redis:6379
     ports:
       - "5000:5000"
+    env_file:
+      - ./.env
     depends_on:
       db-user:
         condition: service_healthy
       redis:
         condition: service_started
+    networks:
+      - ev_network
+
+  # ========== ADMIN SERVICE ==========
+  admin-service:
+    build: ./services/admin-service
+    container_name: admin_service
+    volumes:
+      - ./services/admin-service:/app
+    ports:
+      - "5004:5004"
+    env_file:
+      - ./.env
+    depends_on:
+      - user-service
+      - listing-service
+      - auction-service
+      - transaction-service
+    command: flask run --host=0.0.0.0 --port=5004
+    networks:
+      - ev_network
+
+  ai-pricing-service:
+    build: ./services/ai-pricing-service
+    container_name: pricing_service
+    volumes:
+      - ./services/ai-pricing-service:/app
+    ports:
+      - "5007:5007"
+    env_file:
+      - ./.env
+    depends_on:
+      - listing-service
+    command: flask run --host=0.0.0.0 --port=5007
     networks:
       - ev_network
 
@@ -125,6 +198,8 @@ services:
       - FLASK_ENV=development
     ports:
       - "5001:5001"
+    env_file:
+      - ./.env
     depends_on:
       db-listing:
         condition: service_healthy
@@ -142,9 +217,15 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-auction:5432/${AUCTION_DB}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - FLASK_ENV=development
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     ports:
       - "5002:5002"
+    env_file:
+      - ./.env
     depends_on:
+      redis:
+        condition: service_started
       db-auction:
         condition: service_healthy
     networks:
@@ -162,11 +243,93 @@ services:
       - FLASK_ENV=development
     ports:
       - "5003:5003"
+    env_file:
+      - ./.env
     depends_on:
       db-transaction:
         condition: service_healthy
     networks:
       - ev_network
+
+  report-service:
+    build: ./services/report-service
+    container_name: report_service
+    command: gunicorn --bind 0.0.0.0:5006 "app:create_app()"
+    volumes:
+      - ./services/report-service:/app
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-report:5432/${REPORT_DB}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - FLASK_ENV=development
+    ports:
+      - "5006:5006"
+    env_file:
+      - ./.env
+    depends_on:
+      db-report:
+        condition: service_healthy
+    networks:
+      - ev_network
+  review-service:
+    build: ./services/review-service
+    container_name: review_service
+    command: gunicorn --bind 0.0.0.0:5005 "app:create_app()"
+    volumes:
+      - ./services/review-service:/app
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-review:5432/${REVIEW_DB}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - FLASK_ENV=development
+    ports:
+      - "5005:5005"
+    env_file:
+      - ./.env
+    depends_on:
+      db-review:
+        condition: service_healthy
+    networks:
+      - ev_network
+      
+  auction-worker: 
+    build: ./services/auction-service
+    container_name: auction_worker 
+    command: celery -A celery_app.celery_app worker --loglevel=info
+    volumes:
+      - ./services/auction-service:/app
+    depends_on:
+      db-auction:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment: 
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-auction:5432/${AUCTION_DB}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    networks:
+      - ev_network
+    env_file:  
+      - ./.env
+
+  auction-beat: 
+    build: ./services/auction-service
+    container_name: auction_beat 
+    command: celery -A celery_app.celery_app beat --loglevel=info
+    volumes:
+      - ./services/auction-service:/app
+    depends_on:
+      db-auction:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment: 
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-auction:5432/${AUCTION_DB}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    networks:
+      - ev_network
+    env_file:  
+      - ./.env
+
   # ========== API GATEWAY (NGINX) ==========
   api-gateway:
     build: ./api-gateway
@@ -203,4 +366,6 @@ volumes:
   listing_data:
   auction_data:
   transaction_data:
+  review_data:
+  report_data:
   listing_uploads:

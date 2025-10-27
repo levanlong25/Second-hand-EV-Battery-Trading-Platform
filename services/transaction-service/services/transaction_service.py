@@ -10,7 +10,9 @@ import hmac
 import hashlib
 import json
 import uuid
+import logging  
 
+logger = logging.getLogger(__name__)  
 
 class TransactionService:
     @staticmethod
@@ -31,49 +33,83 @@ class TransactionService:
         return Contract.query.filter_by(transaction_id=transaction_id).first()
 
     @staticmethod
-    def create_transaction(listing_id, seller_id, buyer_id, final_price, transaction_status='pending'): 
-        try:
+    def create_transaction(seller_id, buyer_id, final_price, listing_id=None, auction_id=None):   
+        try: 
             seller_id = int(seller_id)
             buyer_id = int(buyer_id)
-            listing_id = int(listing_id)
             final_price = float(final_price)
-        except (TypeError, ValueError):
-            return None, None, "Invalid input data type."
+             
+            if listing_id is not None:
+                listing_id = int(listing_id)
+            if auction_id is not None:
+                auction_id = int(auction_id)
+ 
+            if listing_id is None and auction_id is None:
+                return None, None, "Phải cung cấp listing_id hoặc auction_id." 
+            if listing_id is not None and auction_id is not None:
+                return None, None, "Không thể tạo từ cả listing và auction."
+
+        except (TypeError, ValueError) as e:
+            logger.error(f"Lỗi kiểu dữ liệu đầu vào khi tạo transaction: {e}")
+            return None, None, "Kiểu dữ liệu đầu vào không hợp lệ."
 
         if seller_id == buyer_id:
-            return None, None, "you sell this list."
-        listing = Transaction.query.filter_by(listing_id=listing_id).first()
-        if listing:
-            return None, None, "someone has bought this list."
-        try:
+            return None, None, "Người mua và người bán không thể là một."
+ 
+        existing_transaction = None
+        if listing_id is not None:
+            existing_transaction = Transaction.query.filter_by(listing_id=listing_id).first()
+            if existing_transaction:
+                return None, None, f"Listing ID {listing_id} đã có giao dịch."
+        elif auction_id is not None:
+            existing_transaction = Transaction.query.filter_by(auction_id=auction_id).first()
+            if existing_transaction:
+                 return None, None, f"Auction ID {auction_id} đã có giao dịch."
+ 
+        is_from_auction = auction_id is not None
+        initial_transaction_status = 'awaiting_payment' if is_from_auction else 'pending'
+        initial_signed_seller = True if is_from_auction else False
+        initial_signed_buyer = True if is_from_auction else False
+
+        try: 
             new_transaction = Transaction(
                 listing_id=listing_id,
+                auction_id=auction_id, 
                 seller_id=seller_id,
                 buyer_id=buyer_id,
                 final_price=final_price,
-                transaction_status=transaction_status
+                transaction_status=initial_transaction_status 
             )
-            db.session.add(new_transaction) 
+            db.session.add(new_transaction)
             db.session.flush() 
-             
+            
+            contract_term = f"""Hợp đồng giao dịch #{new_transaction.transaction_id}:
+                            Bên bán (ID: {seller_id}) đồng ý bán và Bên mua (ID: {buyer_id}) đồng ý mua {'sản phẩm từ đấu giá' if is_from_auction else 'sản phẩm từ tin đăng'} #{listing_id or auction_id}.
+                            Giá trị hợp đồng: {final_price:,.0f} VNĐ.
+                            Bên bán đảm bảo tình trạng sản phẩm như mô tả (nếu có). Bên mua thực hiện thanh toán đầy đủ.
+                            Việc ký hợp đồng điện tử này xác nhận sự đồng ý của cả hai bên với các điều khoản giao dịch.
+                            Mọi tranh chấp phát sinh sẽ được giải quyết thông qua thương lượng hoặc theo quy định của pháp luật.
+                            Hợp đồng có hiệu lực khi cả hai bên hoàn tất ký."""  
+
             new_contract = Contract(
                 transaction_id=new_transaction.transaction_id,
-                term = f"""Hợp đồng giao dịch #{new_transaction.transaction_id}:
-                        Bên {new_transaction.seller_id} cung cấp hàng hóa/dịch vụ cho Bên {new_transaction.buyer_id} theo thỏa thuận.
-                        Giá trị hợp đồng: {new_transaction.final_price} VNĐ.
-                        Bên {new_transaction.seller_id} đảm bảo chất lượng và giao đúng hạn; Bên {new_transaction.buyer_id} thanh toán đầy đủ, đúng thời hạn.
-                        Hai bên cam kết thực hiện đúng nghĩa vụ, không đơn phương hủy bỏ khi chưa thống nhất.
-                        Mọi tranh chấp sẽ được giải quyết bằng thương lượng, nếu không thì theo pháp luật hiện hành.
-                        Hợp đồng có hiệu lực kể từ khi giao dịch được xác nhận thành công.""",
-                signed_by_seller=False,
-                signed_by_buyer=False
+                term=contract_term,
+                signed_by_seller=initial_signed_seller,  
+                signed_by_buyer=initial_signed_buyer  
             )
             db.session.add(new_contract)
-            
-            db.session.commit()
-            return new_transaction, new_contract, "Transaction và Contract đã được tạo thành công."
+
+            db.session.commit()  
+
+            message = "Transaction và Contract đã được tạo."
+            if is_from_auction:
+                message += " Hợp đồng đã tự động ký, chờ thanh toán."
+
+            return new_transaction, new_contract, message
+
         except Exception as e:
             db.session.rollback()
+            logger.error(f"Lỗi khi lưu transaction/contract vào DB: {e}", exc_info=True)
             return None, None, f"Lỗi khi tạo transaction: {str(e)}"
 
     @staticmethod
@@ -118,6 +154,8 @@ class TransactionService:
             return None, "Transaction không tồn tại"
             
         if transaction.transaction_status != 'awaiting_payment':
+            if transaction.transaction_status == 'paid':
+                return None, "Giao dịch đã thanh toán. Vui lòng xem trong trang lịch sửa giao dịch"
             return None, "Giao dịch chưa sẵn sàng để thanh toán. Hợp đồng cần được ký bởi cả hai bên."
 
         existing_payment = Payment.query.filter_by(
@@ -188,12 +226,12 @@ class TransactionService:
         return transaction, message
 
     @staticmethod
-    def cancel_transaction(transaction_id):
-        """Hủy giao dịch (DELETE)."""
+    def cancel_transaction(transaction_id): 
         transaction = Transaction.query.get(transaction_id)
         if transaction: 
-            if transaction.transaction_status in ['paid']:
-                 return False, "Không thể hủy giao dịch đã thanh toán."
+            payment = Payment.query.filter_by(transaction_id=transaction_id).first()
+            if payment.payment_status in ['pending', 'completed']:
+                return False, "Không thể hủy giao dịch đã thanh toán." 
             Payment.query.filter_by(transaction_id=transaction_id).delete()
             Contract.query.filter_by(transaction_id=transaction_id).delete()
             Fee.query.filter_by(transaction_id=transaction_id).delete()
@@ -276,4 +314,4 @@ class TransactionService:
         orderId = f"{order_id}-{int(time.time())}"  
         amount_int = int(amount)
         fake_success_url = f"{return_url}?resultCode={resultCode}&message={message}&orderId={orderId}&amount={amount_int}"
-        return fake_success_url
+        return fake_success_url 

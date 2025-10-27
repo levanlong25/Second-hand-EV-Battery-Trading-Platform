@@ -1,6 +1,5 @@
-pandas
-scikit-learn
-joblib
 Flask
+Flask-JWT-Extended
 Flask-Cors
+python-dotenv
 gunicorn

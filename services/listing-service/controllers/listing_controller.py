@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, verify_jwt_in_request
 from services.listing_service import ListingService
 from services.vehicle_service import VehicleService
 from services.battery_service import BatteryService
@@ -14,6 +14,7 @@ import uuid
 import os
 import requests
 import logging
+from flask_jwt_extended.exceptions import NoAuthorizationError, InvalidHeaderError
   
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -21,6 +22,22 @@ AUCTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL', 'http://auction-serv
 TRANSACTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL', 'http://transaction-service:5003')
 REQUEST_TIMEOUT = 1
 
+
+def service_or_user_required(): 
+    def wrapper(fn):
+        @wraps(fn)
+        def decorator(*args, **kwargs): 
+            auth_header = request.headers.get('Authorization')
+            internal_token = current_app.config.get('INTERNAL_SERVICE_TOKEN') 
+            if auth_header and internal_token and auth_header == internal_token: 
+                return fn(*args, **kwargs)
+ 
+            try:
+                verify_jwt_in_request() 
+            except (NoAuthorizationError, InvalidHeaderError, Exception) as e: 
+                return jsonify({"error": f"Unauthorized: Yêu cầu thiếu JWT hợp lệ hoặc Service Token. Lỗi: {str(e)}"}), 401
+        return decorator
+    return wrapper
 def is_auctioned(resource_type, resource_id):  
     if not resource_id or resource_id <= 0:
         return False 
@@ -416,10 +433,6 @@ def delete_watchlist_by_listing(listing_id):
     if not success:
          return jsonify({"message": message}), 400 
     return jsonify({"message": "Đã xóa khỏi danh sách theo dõi"}), 200
-# ============================================
-# === API report ===
-# ============================================
-
 
 # ============================================
 # === CÁC API CÔNG KHAI (PUBLIC) ===
@@ -428,6 +441,33 @@ def delete_watchlist_by_listing(listing_id):
 def search_listings():
     listings = ListingService.get_all_listings() 
     return jsonify([serialize_listing(l) for l in listings]), 200
+
+@api_bp.route('/listings/filter', methods=['GET'])
+def filter_listings():
+    filters = {
+        "listing_type": request.args.get("listing_type"),
+        "title": request.args.get("title"),
+        "min_price": request.args.get("min_price"),
+        "max_price": request.args.get("max_price"),
+
+        "brand": request.args.get("brand"),
+        "model": request.args.get("model"),
+        "year": request.args.get("year"),
+        "mileage_min": request.args.get("mileage_min"),
+        "mileage_max": request.args.get("mileage_max"),
+
+        "manufacturer": request.args.get("manufacturer"),
+        "capacity_min": request.args.get("capacity_min"),
+        "capacity_max": request.args.get("capacity_max"),
+        "health_min": request.args.get("health_min"),
+        "health_max": request.args.get("health_max"),
+    }
+    try:
+        listings = ListingService.filter_listings(filters)
+        return jsonify([serialize_listing(l) for l in listings]), 200
+    except Exception as e:
+        print("❌ Lỗi khi lọc listings:", e)
+        return jsonify({"error": "Lỗi khi lọc dữ liệu", "message": str(e)}), 500
 
 @api_bp.route('/listings/<int:listing_id>', methods=['GET'])
 def get_listing_details(listing_id):
@@ -503,33 +543,6 @@ def remove_listing(listing_id):
     if not success: return jsonify({"error": message}), 400
     return jsonify({"message": message}), 200
 
-# ============================================
-# === CÁC API ADMIN ===
-# ============================================
-@api_bp.route('/admin/all-listings', methods=['GET'])
-@admin_required()
-def get_all_listings_for_admin():
-    """Lấy TOÀN BỘ tin đăng cho trang admin."""
-    listings = ListingService.get_absolutely_all_listings()
-    return jsonify([serialize_listing(l) for l in listings]), 200
-
-@api_bp.route('/admin/listings/pending', methods=['GET'])
-@admin_required()
-def get_pending_listings_admin():
-    listings = ListingService.get_pending_listings()
-    return jsonify([serialize_listing(l) for l in listings]), 200
-
-@api_bp.route('/admin/listings/<int:listing_id>/status', methods=['PUT'])
-@admin_required()
-def update_listing_status_admin(listing_id):
-    data = request.get_json()
-    new_status = data.get('status')
-    if not new_status: return jsonify({"error": "Missing 'status' in request body"}), 400
-        
-    listing, message = ListingService.update_listing_status(listing_id, new_status)
-    if not listing: return jsonify({"error": message}), 404
-        
-    return jsonify({"message": message, "listing": serialize_listing(listing)}), 200
 # ================================
 
 @api_bp.route('/vehicles/<int:vehicle_id>', methods=['GET'])
@@ -545,3 +558,15 @@ def get_raw_battery_details(battery_id):
      if not battery:
          return jsonify({"error": "Battery not found"}), 404 
      return jsonify(_serialize_battery_basic(battery)), 200
+
+@api_bp.route('/listings/<int:listing_id>/status', methods=['PUT'])
+@service_or_user_required()
+def update_listing_status(listing_id):
+    data = request.get_json()
+    new_status = data.get('status')
+    if not new_status: return jsonify({"error": "Missing 'status' in request body"}), 400
+        
+    listing, message = ListingService.update_listing_status(listing_id, new_status)
+    if not listing: return jsonify({"error": message}), 404
+        
+    return jsonify({"message": message, "listing": serialize_listing(listing)}), 200

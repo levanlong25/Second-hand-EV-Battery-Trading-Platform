@@ -14,6 +14,7 @@ from functools import wraps
 from sqlalchemy.orm import joinedload
 
 USER_SERVICE_URL = os.environ.get('USER_SERVICE_URL', 'http://user-service:5000')  
+LISTING_SERVICE_URL = os.environ.get('LISTING_SERVICE_URL', 'http://listing-service:5001')
 REQUEST_TIMEOUT = 1
 
 transaction_api = Blueprint('transaction_api', __name__, url_prefix='/api')
@@ -35,7 +36,37 @@ def admin_required():
         return decorator
     return wrapper
 
-#user
+def internal_or_user_required(): 
+    def wrapper(fn):
+        @wraps(fn)
+        def decorator(*args, **kwargs): 
+            logger.debug(f"TRANSACTION_SVC [AUTH]: Đã nhận Headers: {request.headers}")
+            try:
+                verify_jwt_in_request() 
+                return fn(*args, **kwargs)
+            except Exception as jwt_exc: 
+                internal_token_header = request.headers.get('Authorization')
+                api_key_header = request.headers.get('X-Api-Key')
+                logger.debug(f"TRANSACTION_SVC [AUTH]: Internal Token Header: {internal_token_header}")
+                logger.debug(f"TRANSACTION_SVC [AUTH]: API Key Header: {api_key_header}") 
+                correct_internal_token = os.environ.get('INTERNAL_SERVICE_TOKEN')  
+                correct_api_key = os.environ.get('INTERNAL_API_KEY')  
+
+                is_valid_internal_call = False 
+                if correct_internal_token and internal_token_header == correct_internal_token:
+                    is_valid_internal_call = True 
+                elif correct_api_key and api_key_header == correct_api_key:
+                    is_valid_internal_call = True
+
+                if is_valid_internal_call: 
+                    logger.warning("[AUTH] KIỂM TRA AUTH NỘI BỘ THẤT BẠI.")
+                    return fn(*args, **kwargs)
+                else: 
+                    logger.warning(f"Internal/User Auth Failed. JWT Error: {jwt_exc}. Headers: {request.headers}")
+                    return jsonify({"error": "Unauthorized access"}), 401
+        return decorator
+    return wrapper
+
 def get_user_info_by_id(user_id: int):
     """Lấy thông tin user (đặc biệt là username) từ User Service."""
     if not user_id:
@@ -158,30 +189,52 @@ def get_transaction_by_buyer():
     return jsonify([serialize_transaction(t) for t in transactions]), 200
 
 @transaction_api.route("/transactions", methods=['POST'])
-@jwt_required() 
+@internal_or_user_required()
 def create_transaction():
     data = request.get_json()
-    if not data or not all(k in data for k in ('listing_id', 'seller_id', 'final_price')):
-        return jsonify({"error": "Missing required fields: listing_id, seller_id, final_price"}), 400
-    
-    current_user_id = int(get_jwt_identity())
+    if not data: return jsonify({"error": "Missing JSON body"}), 400  
+    has_seller = 'seller_id' in data
+    has_price = 'final_price' in data
+    has_listing = data.get('listing_id') is not None  
+    has_auction = data.get('auction_id') is not None  
+ 
+    if not (has_seller and has_price):
+         return jsonify({"error": "Thiếu seller_id hoặc final_price"}), 400
+ 
+    if not (has_listing or has_auction):
+         return jsonify({"error": "Phải cung cấp listing_id hoặc auction_id"}), 400
+
+    if has_listing and has_auction:
+         return jsonify({"error": "Không thể tạo transaction từ cả listing và auction cùng lúc"}), 400
+
     try:
+        current_user_id = int(get_jwt_identity())
+    except Exception: 
+         current_user_id = data.get('buyer_id')  
+         if not current_user_id:
+              return jsonify({"error": "Không xác định được người mua (thiếu token hoặc buyer_id)"}), 401
+
+    try: 
         new_transaction, new_contract, message = TransactionService.create_transaction(
-            listing_id=data['listing_id'],
+            listing_id=data.get('listing_id'),  
+            auction_id=data.get('auction_id'),  
             seller_id=data['seller_id'],
-            buyer_id=current_user_id, 
+            buyer_id=current_user_id,  
             final_price=data['final_price']
-        )
+        ) 
+
         if not new_transaction:
-             return jsonify({"error": message}), 400
+             return jsonify({"error": message}), 400 
 
         return jsonify({
             "message": message,
             "transaction": serialize_transaction(new_transaction),
             "contract": serialize_contract(new_contract)
-        }), 201  
+        }), 201
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        logger.error(f"Lỗi khi gọi TransactionService.create_transaction: {e}", exc_info=True)
+        return jsonify({"error": f"Lỗi máy chủ nội bộ: {str(e)}"}), 500
 
 @transaction_api.route('/transactions/<int:transaction_id>/contract/sign', methods=['POST'])
 @jwt_required()
@@ -210,10 +263,10 @@ def get_single_payment_status(transaction_id):
         )
 
         if not payment:
-            current_user_id = int(get_jwt_identity())
-            if payment.transaction.buyer_id != current_user_id and payment.transaction.seller_id != current_user_id:
-                return jsonify({"error": "Bạn không có quyền xem trạng thái thanh toán này."}), 403
             return jsonify({"error": "Sản phẩm này chưa thanh toán hoặc giao dịch không tồn tại."}), 404
+        current_user_id = int(get_jwt_identity())
+        if payment.transaction.buyer_id != current_user_id and payment.transaction.seller_id != current_user_id:
+            return jsonify({"error": "Bạn không có quyền xem trạng thái thanh toán này."}), 403
  
         return jsonify({"payment": serialize_payment(payment)}), 200
 
@@ -245,8 +298,7 @@ def create_payment_route(transaction_id):
         if not new_payment: 
             if "Transaction không tồn tại" in message:
                 return jsonify({"error": message}), 404
-            else: 
-                # Lỗi logic, vd: "Giao dịch chưa sẵn sàng"
+            else:  
                 return jsonify({"error": message}), 400 
 
         return jsonify({
@@ -331,7 +383,7 @@ def get_contract(transaction_id):
 
 @transaction_api.route('/transactions/<int:transaction_id>/confirm-payment', methods=['POST'])
 @jwt_required()
-def confirm_payment_route(transaction_id):
+def confirm_payment_route(transaction_id):  
     data = request.get_json()
     if not data or 'payment_method' not in data:
         return jsonify({"error": "Missing payment_method"}), 400
@@ -375,51 +427,114 @@ def confirm_payment_route(transaction_id):
                 return_url=return_url,
                 notify_url=notify_url 
             )
-            payment.payment_status = 'pending' 
-            db.session.commit()
+            try: 
+                payment.payment_status = 'pending'
+                transaction.transaction_status = 'paid'
+                listing_id = transaction.listing_id 
+                if listing_id:
+                    internal_token = current_app.config.get('INTERNAL_SERVICE_TOKEN')
+                    if not internal_token:
+                        logger.error("INTERNAL_SERVICE_TOKEN bị thiếu hoặc sai định dạng.")
+                        db.session.rollback()
+                        raise Exception("Lỗi cấu hình máy chủ nội bộ.")
+                    headers = {'Authorization': internal_token}
+                    url = f"{LISTING_SERVICE_URL}/api/listings/{listing_id}/status"
+                    payload = {'status': 'sold'} 
+                    response = requests.put(
+                        url, 
+                        json=payload, 
+                        headers=headers, 
+                        timeout=REQUEST_TIMEOUT
+                    )
+                    response.raise_for_status() 
+                    db.session.commit()
+                    logger.info(f"Bank Payment: Xử lý thành công TXN {transaction_id}. Payment -> 'pending', Listing -> 'sold'.")
+                
+                db.session.commit()
+                logger.info(f"Bank Payment: Xử lý thành công TXN {transaction_id}. Payment -> 'pending'.")
+            
+            except requests.exceptions.RequestException as e: 
+                db.session.rollback()  
+                logger.error(f"confirm_payment (bank): Lỗi khi gọi Listing Service (Listing {listing_id}). Đã rollback. Lỗi: {e}")
+                raise Exception(f"Lỗi khi cập nhật trạng thái sản phẩm: {e}")
+            
+            except Exception as e: 
+                db.session.rollback()  
+                logger.error(f"confirm_payment (bank): Lỗi CSDL hoặc cấu hình khi commit TXN {transaction_id}. Lỗi: {e}")
+                raise e  
         else:
-            return jsonify({"error": "Phương thức thanh toán không hợp lệ."}), 400
-
+            return jsonify({"error": "Phương thức thanh toán không hợp lệ."}), 400 
         return jsonify({
             "message": f"Tạo thanh toán {payment_method.upper()} thành công",
             "payment_url": payment_url
         }), 200
 
-    except Exception as e:
+    except Exception as e: 
+        logger.error(f"Lỗi nghiêm trọng khi confirm_payment cho TXN {transaction_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
 @transaction_api.route('/payments/webhook/momo', methods=['POST'])
 def momo_webhook(): 
     data = request.get_json()
-
     order_id = data.get('orderId')
-    result_code = data.get('resultCode')  
+    result_code = data.get('resultCode') 
     if order_id is None or result_code is None: 
-        return jsonify({"error": "Missing data"}), 400 
+        return jsonify({"error": "Missing data"}), 400  
     try:
         transaction_id_str = order_id.split('-')[0]
         if not transaction_id_str.isdigit():
              return jsonify({"error": "Invalid orderId format"}), 400
         transaction_id = int(transaction_id_str)
     except Exception as e:
-        return jsonify({"error": "Invalid orderId"}), 400 
+        return jsonify({"error": "Invalid orderId"}), 400  
     try:
         payment = Payment.query.filter_by(transaction_id=transaction_id).first()
     except Exception as e: 
         return jsonify({"error": "Database query error"}), 500
 
     if not payment:
-        return jsonify({"error": "Payment not found"}), 404 
-    if payment.payment_status == 'initiated':
-        if result_code == 0:  
-            payment.payment_status = 'pending'
+        return jsonify({"error": "Payment not found"}), 404  
+    if payment.payment_status in ['pending', 'completed']:
+        return jsonify({"status": "ok"}), 200 
+    if payment.payment_status == 'initiated': 
+        if result_code == 0: 
+            try: 
+                payment.payment_status = 'pending' 
+                transaction = Transaction.query.get(payment.transaction_id)
+                if not transaction:
+                    db.session.rollback()
+                    return jsonify({"error": "Dữ liệu nội bộ không nhất quán"}), 500 
+                transaction.transaction_status = 'paid'
+                listing_id = transaction.listing_id 
+                if listing_id:
+                    internal_token = current_app.config.get('INTERNAL_SERVICE_TOKEN')
+                    if not internal_token:
+                        db.session.rollback()
+                        return jsonify({"error": "Lỗi cấu hình máy chủ nội bộ."}), 500
+                    headers = {'Authorization': internal_token}
+                    url = f"{LISTING_SERVICE_URL}/api/listings/{listing_id}/status"
+                    payload = {'status': 'sold'}
+                    response = requests.put(
+                        url, 
+                        json=payload, 
+                        headers=headers, 
+                        timeout=REQUEST_TIMEOUT
+                    )
+                    response.raise_for_status() 
+                db.session.commit()
+            except requests.exceptions.RequestException as e:
+                db.session.rollback()
+                return jsonify({"error": "Failed to update listing service"}), 500
+            except Exception as e: 
+                db.session.rollback()
+                return jsonify({"error": "Database commit error"}), 500
         else:
-            payment.payment_status = 'failed' 
-        try:
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({"error": "Database commit error"}), 500 
+            payment.payment_status = 'failed'
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return jsonify({"error": "Database commit error"}), 500
     return jsonify({"status": "ok"}), 200
 
 @transaction_api.route('/transactions/<int:transaction_id>/payment-status', methods=['GET'])
@@ -447,51 +562,3 @@ def get_the_payment_status_for_polling(transaction_id):
         print(f"!!! Lỗi khi kiểm tra status polling: {e}")
         return jsonify({"error": "Lỗi máy chủ nội bộ"}), 500
     
-
-
-@transaction_api.route('/admin/all-payments', methods=['GET'])
-@jwt_required()
-@admin_required() # <--- Dùng decorator mới
-def get_all_payments_admin():
-    try:
-        # Query tất cả payments, join với transaction để lấy buyer/seller ID
-        all_payments = (
-            db.session.query(Payment)
-            .join(Transaction, Payment.transaction_id == Transaction.transaction_id)
-            .order_by(Payment.created_at.desc()) # Sắp xếp mới nhất lên đầu
-            .all()
-        )
-
-        # Dùng serializer mới để có username
-        return jsonify([serialize_payment_for_admin(p) for p in all_payments]), 200 
-
-    except Exception as e:
-        print(f"!!! Lỗi admin get all payments: {e}") # Log lỗi ra server
-        return jsonify({"error": "Lỗi máy chủ nội bộ khi lấy danh sách thanh toán."}), 500
-
-
-@transaction_api.route('/admin/payments/<int:payment_id>/approve', methods=['PUT']) # Dùng PUT để cập nhật
-@jwt_required()
-@admin_required() # <--- Dùng decorator mới
-def approve_payment_admin(payment_id):
-    try:
-        payment = Payment.query.get(payment_id)
-
-        if not payment:
-            return jsonify({"error": f"Không tìm thấy thanh toán với ID {payment_id}."}), 404
-
-        # Chỉ cho phép duyệt nếu trạng thái đang là 'pending'
-        if payment.payment_status != 'pending':
-            return jsonify({"error": f"Thanh toán này không ở trạng thái 'pending' (hiện tại: {payment.payment_status}). Không thể duyệt."}), 400
-
-        # Cập nhật trạng thái
-        payment.payment_status = 'completed'
-        
-        db.session.commit()
-        
-        return jsonify({"message": f"Đã duyệt thành công thanh toán ID {payment_id}. Trạng thái mới: completed."}), 200
-
-    except Exception as e:
-        db.session.rollback() # Rollback nếu có lỗi xảy ra
-        print(f"!!! Lỗi admin approve payment {payment_id}: {e}") # Log lỗi
-        return jsonify({"error": "Lỗi máy chủ nội bộ khi duyệt thanh toán."}), 500

@@ -5,7 +5,8 @@ class Transaction(db.Model):
     __tablename__ = "transaction"
 
     transaction_id = db.Column(db.Integer, primary_key = True, autoincrement = True)
-    listing_id = db.Column(db.Integer, nullable = False)
+    auction_id = db.Column(db.Integer, nullable = True)
+    listing_id = db.Column(db.Integer, nullable = True)
     buyer_id = db.Column(db.Integer, nullable = False) # = người nhấn mua
     seller_id = db.Column(db.Integer, nullable = False) # = người đăng listing
     final_price = db.Column(db.Float, nullable = False) # = listing price

@@ -6,6 +6,11 @@ from dateutil import parser
 import requests  
 import logging   
 import os
+import sys
+import traceback
+import pytz
+
+VIETNAM_TZ = pytz.timezone("Asia/Ho_Chi_Minh")
 
 # --- Blueprint và Cấu hình ---
 auction_bp = Blueprint('auction_api', __name__, url_prefix='/api')
@@ -38,7 +43,47 @@ def get_user_info_by_id(user_id: int):
     except requests.exceptions.RequestException as e: 
         logger.error(f"Failed to connect to User Service at {url} for user info: {e}")
         return None
-    
+
+@auction_bp.route('/filter', methods=['GET'])
+def filter_auctions_by_type(): 
+    try: 
+        filters = {
+            "auction_type": request.args.get('type') 
+        } 
+        auction_type = filters.get("auction_type")
+        if auction_type and auction_type not in ['vehicle', 'battery']:
+             return jsonify({"error": "Invalid auction_type. Must be 'vehicle' or 'battery'."}), 400 
+        auctions = AuctionService.filter_auctions(filters) 
+        enriched_auctions = []
+        for auction in auctions:
+            auction_data = serialize_auction(auction)
+            vehicle_details = None
+            battery_details = None
+             
+            current_auction_type = auction_data.get('auction_type')
+            
+            if current_auction_type == 'vehicle' and auction.vehicle_id:
+                vehicle_details = get_and_serialize_vehicle_by_id(auction.vehicle_id)
+                if vehicle_details:
+                    auction_data['vehicle_details'] = vehicle_details
+                else:
+                    logger.warning(f"Could not fetch vehicle details for auction {auction.auction_id}")
+
+            elif current_auction_type == 'battery' and auction.battery_id:
+                battery_details = get_and_serialize_battery_by_id(auction.battery_id)
+                if battery_details:
+                    auction_data['battery_details'] = battery_details
+                else:
+                    logger.warning(f"Could not fetch battery details for auction {auction.auction_id}")
+
+            enriched_auctions.append(auction_data)
+
+        return jsonify(enriched_auctions), 200
+
+    except Exception as e:
+        logger.error(f"Error in filter_auctions: {str(e)}", exc_info=True)
+        return jsonify({"error": "An internal server error occurred while filtering auctions."}), 500
+
 # --- Custom Decorator for Admin Role ---
 def admin_required():
     def wrapper(fn):
@@ -82,15 +127,18 @@ def get_and_serialize_battery_by_id(battery_id: int):
  
 def serialize_auction(auction): 
     if not auction: 
-        return None
+        return None 
+    local_start_time = auction.start_time.astimezone(VIETNAM_TZ) if auction.start_time else None
+    local_end_time = auction.end_time.astimezone(VIETNAM_TZ) if auction.end_time else None
+
     return {
         'auction_id': auction.auction_id,
         'auction_type': auction.auction_type,
         'vehicle_id': auction.vehicle_id,   
         'battery_id': auction.battery_id,  
         'auction_status': auction.auction_status,
-        'start_time': auction.start_time.isoformat(),
-        'end_time': auction.end_time.isoformat(),
+        'start_time': local_start_time.isoformat() if local_start_time else None,
+        'end_time': local_end_time.isoformat() if local_end_time else None,
         'current_bid': str(auction.current_bid),
         'bidder_id': auction.bidder_id,  
         'winning_bidder_id': auction.winning_bidder_id  
@@ -189,101 +237,121 @@ def get_auction_battery_details(battery_id):
 
 @auction_bp.route('/', methods=['POST'])
 @jwt_required()
-def create_auction(): 
+def create_auction():
     current_user_id = int(get_jwt_identity())
-    data = request.get_json()
-    
+    data = request.get_json() 
     if not data:
-        return jsonify({"error": "Request body must be JSON"}), 400
- 
-    data['bidder_id'] = current_user_id
-     
-    if 'start_time' in data and isinstance(data['start_time'], str):
-        try:
-            data['start_time'] = parser.isoparse(data['start_time'])
-        except ValueError:
-            return jsonify({"error": "Invalid start_time format. Use ISO 8601 format."}), 400
+        return jsonify({"error": "Request body must be JSON"}), 400 
+    data['bidder_id'] = current_user_id  
+    try:  
+        auction, message = AuctionService.add_auction(data)
+        if not auction: 
+            return jsonify({"error": message}), 400
 
-    auction, message = AuctionService.add_auction(data)
-    if not auction:
-        return jsonify({"error": message}), 400
-    
-    return jsonify({"message": message, "auction": serialize_auction(auction)}), 201
+        return jsonify({"message": message, "auction": serialize_auction(auction)}), 201
+    except Exception as e:  
+         logger.error(f"Error creating auction: {e}", exc_info=True)
+         return jsonify({"error": "An internal error occurred."}), 500
 
 @auction_bp.route('/<int:auction_id>', methods=['PUT'])
 @jwt_required()
-def update_auction(auction_id): 
+def update_auction(auction_id):
     current_user_id = int(get_jwt_identity())
     data = request.get_json()
 
     if not data:
         return jsonify({"error": "Request body must be JSON"}), 400
- 
-    if 'start_time' in data and isinstance(data['start_time'], str):
-        try:
-            data['start_time'] = parser.isoparse(data['start_time'])
-        except ValueError:
-            return jsonify({"error": "Invalid start_time format. Use ISO 8601 format."}), 400
 
-    auction, message = AuctionService.update_auction_metadata(auction_id, current_user_id, data)
-    if not auction:
-        return jsonify({"error": message}), 403  
-        
-    return jsonify({"message": message, "auction": serialize_auction(auction)}), 200
+    # Service layer handles datetime parsing and validation
+    try: # Wrap service call
+        auction, message = AuctionService.update_auction_metadata(auction_id, current_user_id, data)
+        if not auction:
+            # Service layer determines if it's permission error (403) or validation (400) or not found (404)
+            status_code = 400 # Default bad request
+            if "permission" in message.lower():
+                status_code = 403
+            elif "not found" in message.lower():
+                 status_code = 404
+            return jsonify({"error": message}), status_code
+
+        return jsonify({"message": message, "auction": serialize_auction(auction)}), 200
+    except Exception as e: # Catch potential unexpected errors
+         logger.error(f"Error updating auction {auction_id}: {e}", exc_info=True)
+         return jsonify({"error": "An internal error occurred."}), 500
 
 @auction_bp.route('/auctions/<int:auction_id>', methods=['DELETE'])
 @jwt_required()
-def delete_auction(auction_id): 
+def delete_auction(auction_id):
     current_user_id = int(get_jwt_identity())
-    user_role = get_jwt().get("role")
+    user_role = get_jwt().get("role", "user") # Default to 'user' if role is missing
 
-    success, message = AuctionService.delete_auction(auction_id, current_user_id, user_role)
-    if not success:
-        return jsonify({"error": message}), 403
-    
-    return jsonify({"message": message}), 200
+    try: # Wrap service call
+        success, message = AuctionService.delete_auction(auction_id, current_user_id, user_role)
+        if not success:
+            # Service layer determines the reason and appropriate code (403/404/400)
+            status_code = 400 # Default
+            if "permission" in message.lower():
+                status_code = 403
+            elif "not found" in message.lower():
+                status_code = 404
+            return jsonify({"error": message}), status_code
+
+        return jsonify({"message": message}), 200 # 200 OK on successful deletion
+    except Exception as e: # Catch potential unexpected errors
+         logger.error(f"Error deleting auction {auction_id}: {e}", exc_info=True)
+         return jsonify({"error": "An internal error occurred."}), 500
+
 
 @auction_bp.route('/auctions/vehicles/<int:vehicle_id>', methods=['DELETE'])
 @jwt_required()
-def delete_vehicle_auction(vehicle_id): 
-    current_user_id = int(get_jwt_identity())
+def delete_vehicle_auction(vehicle_id):
+    current_user_id = int(get_jwt_identity()) 
+    try: 
+        success, message, status_code = AuctionService.delete_vehicle_auction(vehicle_id, current_user_id)
+        if not success:
+            return jsonify({"error": message}), status_code
 
-    success, message, status_code = AuctionService.delete_vehicle_auction(vehicle_id, current_user_id)
-    if not success:
-        return jsonify({"error": message}), status_code
-    
-    return jsonify({"message": message}), 200
+        return jsonify({"message": message}), status_code  
+    except Exception as e:  
+         logger.error(f"Error deleting vehicle auction {vehicle_id}: {e}", exc_info=True)
+         return jsonify({"error": "An internal error occurred."}), 500 
 
 @auction_bp.route('/auctions/batteries/<int:battery_id>', methods=['DELETE'])
 @jwt_required()
-def delete_battery_auction(battery_id): 
-    current_user_id = int(get_jwt_identity())
+def delete_battery_auction(battery_id):
+    current_user_id = int(get_jwt_identity()) 
+    try:  
+        success, message, status_code = AuctionService.delete_battery_auction(battery_id, current_user_id)
+        if not success:
+            return jsonify({"error": message}), status_code
 
-    success, message, status_code = AuctionService.delete_battery_auction(battery_id, current_user_id)
-    if not success:
-        return jsonify({"error": message}), status_code
-    
-    return jsonify({"message": message}), 200
-
+        return jsonify({"message": message}), status_code  
+    except Exception as e: 
+         logger.error(f"Error deleting battery auction {battery_id}: {e}", exc_info=True)
+         return jsonify({"error": "An internal error occurred."}), 500 
 @auction_bp.route('/<int:auction_id>/bid', methods=['POST'])
 @jwt_required()
-def place_bid(auction_id): 
+def place_bid(auction_id):
     current_user_id = int(get_jwt_identity())
     data = request.get_json()
-    
+
     if not data or 'bid_amount' not in data:
         return jsonify({"error": "Missing 'bid_amount' in request body"}), 400
-    
+
     try:
         bid_amount = float(data['bid_amount'])
     except (ValueError, TypeError):
         return jsonify({"error": "'bid_amount' must be a valid number"}), 400
 
-    auction, message = AuctionService.place_bid(auction_id, current_user_id, bid_amount)
-    if not auction:
-        return jsonify({"error": message}), 400
-        
-    return jsonify({"message": message, "auction": serialize_auction(auction)}), 200
+    try:   
+        auction, message = AuctionService.place_bid(auction_id, current_user_id, bid_amount)
+        if not auction: 
+            return jsonify({"error": message}), 400  
+
+        return jsonify({"message": message, "auction": serialize_auction(auction)}), 200
+    except Exception as e:  
+         logger.error(f"Error placing bid on auction {auction_id}: {e}", exc_info=True)
+         return jsonify({"error": "An internal error occurred."}), 500
 
 # ============================================
 # === AUCTION API - "MY" ENDPOINTS ===
@@ -306,61 +374,3 @@ def get_my_winning_bids():
 # ============================================
 # === AUCTION API - ADMIN ENDPOINTS ===
 # ============================================
-
-@auction_bp.route('/admin/<int:auction_id>/finalize', methods=['PUT'])
-@admin_required()
-def finalize_auction(auction_id): 
-    auction, message = AuctionService.manually_finalize_auction(auction_id)
-    if not auction:
-        return jsonify({"error": message}), 400
-    
-    return jsonify({"message": message, "auction": serialize_auction(auction)}), 200 
-
-@auction_bp.route('/admin/pending', methods=['GET'])
-@admin_required()
-def get_pending_auctions(): 
-    auctions = AuctionService.get_auctions_by_status('pending')
-    return jsonify([serialize_auction(a) for a in auctions]), 200
-
-@auction_bp.route('/admin/review', methods=['POST'])
-@admin_required()
-def review_auction():  
-    data = request.get_json()
-    if not data or 'auction_id' not in data or data.get('approve') is None:
-        return jsonify({"error": "Missing 'auction_id' or 'approve' (true/false) in request body"}), 400
-    
-    auction_id = data.get('auction_id')
-    is_approved = bool(data.get('approve'))
-
-    auction, message = AuctionService.review_auction(auction_id, is_approved)
-    
-    if not auction:
-        return jsonify({"error": message}), 400
-    
-    return jsonify({"message": message, "auction": serialize_auction(auction)}), 200
-
-
-@auction_bp.route('/admin/all-auctions', methods=['GET'])
-@admin_required()
-def get_all_auctions_for_admin():
-    """Lấy TOÀN BỘ tin đăng cho trang admin."""
-    auctions = AuctionService.get_absolutely_all_auctions()
-    return jsonify([serialize_auction(l) for l in auctions]), 200
-
-@auction_bp.route('/admin/auctions/pending', methods=['GET'])
-@admin_required()
-def get_pending_auctions_admin():
-    auctions = AuctionService.get_pending_auctions()
-    return jsonify([serialize_auction(l) for l in auctions]), 200
-
-@auction_bp.route('/admin/auctions/<int:auction_id>/auction_status', methods=['PUT'])
-@admin_required()
-def update_auction_status_admin(auction_id):
-    data = request.get_json()
-    new_status = data.get('auction_status')
-    if not new_status: return jsonify({"error": "Missing 'status' in request body"}), 400
-        
-    auction, message = AuctionService.update_auction_status(auction_id, new_status)
-    if not auction: return jsonify({"error": message}), 404
-        
-    return jsonify({"message": message, "auction": serialize_auction(auction)}), 200

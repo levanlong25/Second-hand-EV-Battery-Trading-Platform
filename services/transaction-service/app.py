@@ -28,12 +28,15 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "a_very_secret_key")
+    app.config['INTERNAL_SERVICE_TOKEN'] = os.getenv('INTERNAL_SERVICE_TOKEN')
 
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     from controllers.transaction_controller import transaction_api
+    from controllers.internal_controller import internal_bp
     app.register_blueprint(transaction_api)
+    app.register_blueprint(internal_bp)
     
     @app.route('/health', methods=['GET'])
     def health_check():

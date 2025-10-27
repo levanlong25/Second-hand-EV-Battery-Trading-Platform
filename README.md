@@ -28,6 +28,18 @@ docker-compose exec listing-service flask db migrate -m "Initial listing service
 
 docker-compose exec listing-service flask db upgrade
 
+docker-compose exec review-service flask db init
+
+docker-compose exec review-service flask db migrate -m "Initial review service tables"
+
+docker-compose exec review-service flask db upgrade
+
+docker-compose exec report-service flask db init
+
+docker-compose exec report-service flask db migrate -m "Initial report service tables"
+
+docker-compose exec report-service flask db upgrade
+
 docker-compose exec user-service flask create-admin admin admin@gmail.com 08102005    
 
 
@@ -41,6 +53,8 @@ select * from
 UPDATE payment SET payment_status = 'initiated' WHERE payment_id = 15;
 select * from payment;
 DELETE FROM payment WHERE id = 1;
+UPDATE auctions SET start_time = start_time::date + interval '8 hour 5 minute', end_time = start_time::date + interval '10 hour 5 minute' WHERE EXTRACT(HOUR FROM start_time) = 8;
+UPDATE auctions SET auction_status = 'started' where auction_id = 1;
 
 Service	Quản lý bảng	Chức năng chính
 User Service	        Users, Profile	Đăng ký, đăng nhập, quản lý hồ sơ

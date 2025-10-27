@@ -20,7 +20,6 @@ class Listing(db.Model):
      
     images = db.relationship('ListingImage', back_populates='listing', cascade='all, delete-orphan')
     watchlists = db.relationship("WatchList", back_populates="listing", cascade='all, delete-orphan')
-    reports = db.relationship('Report', back_populates="listing", cascade='all, delete-orphan')
 
     def __repr__(self):
         return f"<Listing {self.title} (ID: {self.listing_id})>"

@@ -21,12 +21,15 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "a-default-auction-secret-key")
+    app.config['INTERNAL_SERVICE_TOKEN'] = os.getenv('INTERNAL_SERVICE_TOKEN')
  
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
  
     from controllers.auction_controller import auction_bp
+    from controllers.internal_controller import internal_bp
+    app.register_blueprint(internal_bp)
     app.register_blueprint(auction_bp)
  
     @app.errorhandler(500)
