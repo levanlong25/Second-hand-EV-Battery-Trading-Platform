@@ -2835,3 +2835,117 @@ async function loadMyReviewsAndReports() {
         if (reportsContainer) reportsContainer.innerHTML = `<p class="text-red-500">Lỗi tải dữ liệu.</p>`;
     }
 }
+async function getAssetDetails(type, id) {
+    if (!type || !id) {
+        throw new Error("Không tìm thấy thông tin tài sản (thiếu type hoặc id).");
+    }
+    if(type == "vehicle"){
+      type = "vehicles";
+    }
+    else{ type = "batteries";}
+    const assetDetails = await apiRequest(`/listing/api/${type}/${id}`, 'GET', null, 'listing'); 
+    
+    if (!assetDetails) {
+         throw new Error("Không thể tải chi tiết tài sản từ Listing service.");
+    }
+    return assetDetails;
+}
+ 
+
+
+async function suggestListingPrice() {
+    const button = document.getElementById('btn-suggest-list-price');
+    const suggestionBox = document.getElementById('listing-price-suggestion');
+    const priceInput = document.getElementById('listing-price');
+    const type = document.getElementById("listing-item-type").value;
+    const id = document.getElementById("listing-item-id").value;
+
+    button.disabled = true;
+    button.textContent = 'Đang tính...';
+    suggestionBox.innerHTML = 'Đang lấy dữ liệu...';
+    suggestionBox.classList.remove('hidden');
+
+    try { 
+        const assetDetails = await getAssetDetails(type, id);
+ 
+        const body = {
+            listing_type: type, 
+            brand: assetDetails.brand, 
+            model: assetDetails.model, 
+            year: assetDetails.year,  
+            mileage: assetDetails.mileage,  
+            manufacturer: assetDetails.manufacturer,  
+            capacity_kwh: assetDetails.capacity_kwh,  
+            health_percent: assetDetails.health_percent  
+        };
+ 
+        const result = await apiRequest('/pricing/api/suggest-price', 'POST', body, 'ai-pricing');
+
+        if (result && result.suggested_price) { 
+            priceInput.value = result.suggested_price;
+            suggestionBox.innerHTML = `💡 **Gợi ý:** ${result.explanation}`;
+            suggestionBox.classList.remove('text-red-500');
+            suggestionBox.classList.add('text-gray-600', 'bg-gray-50');
+        } else {
+            throw new Error(result.error || "Không nhận được gợi ý.");
+        }
+
+    } catch (error) {
+        console.error("Lỗi gợi ý giá (Listing):", error);
+        suggestionBox.innerHTML = `❌ ${error.message}`;
+        suggestionBox.classList.add('text-red-500');
+        suggestionBox.classList.remove('bg-gray-50');
+    } finally {
+        button.disabled = false;
+        button.textContent = '💡 AI Gợi Ý Giá';
+    }
+}
+ 
+async function suggestAuctionPrice() {
+    const button = document.getElementById('btn-suggest-auction-price');
+    const suggestionBox = document.getElementById('auction-price-suggestion');
+    const priceInput = document.getElementById('auction-start-bid');
+    const type = document.getElementById("auction-item-type").value;
+    const id = document.getElementById("auction-item-id").value;
+
+    button.disabled = true;
+    button.textContent = 'Đang tính...';
+    suggestionBox.innerHTML = 'Đang lấy dữ liệu...';
+    suggestionBox.classList.remove('hidden');
+
+    try { 
+        const assetDetails = await getAssetDetails(type, id);
+ 
+        const body = {
+            listing_type: type,
+            brand: assetDetails.brand,
+            model: assetDetails.model,
+            year: assetDetails.year,
+            mileage: assetDetails.mileage,
+            manufacturer: assetDetails.manufacturer,
+            capacity_kwh: assetDetails.capacity_kwh,
+            health_percent: assetDetails.health_percent
+        };
+ 
+        const result = await apiRequest('/pricing/api/suggest-price', 'POST', body, 'ai-pricing');
+
+        if (result && result.suggested_price) { 
+            priceInput.value = result.suggested_price;
+            suggestionBox.innerHTML = `💡 **Gợi ý:** ${result.explanation}`;
+            suggestionBox.classList.remove('text-red-500');
+            suggestionBox.classList.add('text-gray-600', 'bg-gray-50');
+        } else {
+            throw new Error(result.error || "Không nhận được gợi ý.");
+        }
+
+    } catch (error) {
+        console.error("Lỗi gợi ý giá (Auction):", error);
+        suggestionBox.innerHTML = `❌ ${error.message}`;
+        suggestionBox.classList.add('text-red-500');
+        suggestionBox.classList.remove('bg-gray-50');
+    } finally {
+        button.disabled = false;
+        button.textContent = '💡 AI Gợi Ý Giá';
+    }
+}
+
