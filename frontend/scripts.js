@@ -3175,5 +3175,164 @@ function renderReviewsAboutMe(reviews) {
     `;
     }).join("");
 }
+// mở form report
+function openReportModal(transactionId, paymentData) {
+  console.log(
+    "Opening Report modal for transaction:",
+    transactionId,
+    "Data:",
+    paymentData
+  );
+
+  const currentUserId = getUserIdFromToken();
+  if (!currentUserId) {
+    showToast("Lỗi: Không thể xác định người dùng hiện tại.", "error");
+    return;
+  }
+
+  if (!paymentData || !paymentData.buyer_id || !paymentData.seller_id) {
+    showToast(
+      "Lỗi: Thiếu thông tin người mua/bán trong dữ liệu giao dịch.",
+      "error"
+    );
+    console.error("Missing buyer_id or seller_id in paymentData:", paymentData);
+    return;
+  }
+
+  let reportedUserId = null;
+  let reportedUserRole = "";
+
+  if (currentUserId == paymentData.buyer_id) {
+    reportedUserId = paymentData.seller_id;
+    reportedUserRole = "người bán";
+  } else if (currentUserId == paymentData.seller_id) {
+    reportedUserId = paymentData.buyer_id;
+    reportedUserRole = "người mua";
+  } else {
+    showToast(
+      "Lỗi: Bạn không phải người mua hoặc người bán trong giao dịch này.",
+      "error"
+    );
+    return;
+  }
+
+  document.getElementById("report-transaction-id").value = transactionId;
+  document.getElementById("report-reported-user-id").value = reportedUserId;
+  document.getElementById("report-modal-transaction-id").textContent =
+    transactionId;
+
+  document.getElementById(
+    "report-modal-reported-username"
+  ).textContent = `ID ${reportedUserId} (${reportedUserRole})`;
+
+  document.getElementById("report-form").reset();
+  document.getElementById("report-reason").value = "";
+  openModal("report-modal");
+}
+// --- REPORT FORM EVENT LISTENER ---
+document.getElementById("report-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); 
+
+    const submitButton = document.querySelector("#report-form button[type='submit']");
+    const originalButtonText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Đang gửi...';
+
+    try { 
+        const transactionId = document.getElementById("report-transaction-id").value;
+        const reportedUserId = document.getElementById("report-reported-user-id").value;
+        const reason = document.getElementById("report-reason").value;
+        const details = document.getElementById("report-details").value;
+        
+        if (!reason) {
+            throw new Error("Vui lòng chọn lý do báo cáo.");
+        }
+        if (!details || details.trim() === "") {
+             throw new Error("Vui lòng nhập mô tả chi tiết cho báo cáo.");
+        }
+        
+        const body = {
+            transaction_id: parseInt(transactionId),
+            reported_user_id: parseInt(reportedUserId),
+            reason: reason,
+            details: details
+        };
+        
+        await apiRequest('/report/api/reports', 'POST', body, 'report'); 
+        
+        showToast("Gửi báo cáo thành công!");
+        closeModal("report-modal"); 
+
+    } catch (error) {
+        console.error("Lỗi khi gửi báo cáo:", error); 
+    } finally { 
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+    }
+});
+
+
+async function handleDeleteReport(reportId) {
+    if (!confirm("Bạn có chắc muốn xóa/rút lại báo cáo này?")) return;
+
+    showLoading();
+    try {
+        await apiRequest(`/report/api/reports/${reportId}`, 'DELETE', null, 'report');
+        showToast("Xóa báo cáo thành công.");
+        loadMyReviewsAndReports(); // Tải lại danh sách
+    } catch (error) {
+        // apiRequest đã hiển thị lỗi
+    } finally {
+        hideLoading();
+    }
+}
+
+
+
+function renderMyFiledReports(reports) {
+    const container = document.getElementById("my-filed-reports-container");
+    if (!container) return;
+
+    if (!reports || !Array.isArray(reports) || reports.length === 0) {
+        container.innerHTML = "<p class='text-gray-500'>Bạn chưa gửi báo cáo nào.</p>";
+        return;
+    }
  
+    const formatReportStatusBadge = (status) => {
+        switch (status) {
+            case "pending":
+                return '<span class="px-3 py-1 text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Chờ xử lý</span>';
+            case "resolved":
+                return '<span class="px-3 py-1 text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Đã giải quyết</span>';
+            case "dismissed":
+                return '<span class="px-3 py-1 text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Đã bỏ qua</span>';
+            default:
+                return `<span class="px-3 py-1 text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">${status || 'N/A'}</span>`;
+        }
+    };
+
+    container.innerHTML = reports.map(r => `
+        <div class="bg-red-50 border border-red-200 p-4 rounded-lg relative"> 
+            ${r.status === 'pending' ? `
+            <div class="absolute top-4 right-4">
+                <button onclick="handleDeleteReport(${r.report_id})" class="text-xs text-red-600 hover:text-red-900 font-semibold hover:underline">Xóa</button>
+            </div>
+            ` : ''}
+ 
+            <div class="flex items-center mb-2">
+                ${formatReportStatusBadge(r.status)}
+                <p class="text-sm text-gray-600 ml-3">Giao dịch: <b class="font-medium">#${r.transaction_id}</b></p>
+            </div>
+             
+            <p class="font-semibold text-red-700 capitalize">Lý do: ${r.reason || 'N/A'}</p>
+            <p class="text-gray-800 italic my-2 pl-3 border-l-2 border-red-200">"${r.details || 'Không có chi tiết.'}"</p>
+             
+            <div class="flex justify-between items-center mt-3 pt-2 border-t border-red-100">
+                 <p class="text-sm text-gray-700">Báo cáo User: <b>ID ${r.reported_user_id}</b></p>
+                 <p class="text-xs text-gray-500">Ngày: ${new Date(r.created_at).toLocaleDateString('vi-VN')}</p>
+            </div>
+        </div>
+    `).join("");
+}
+
 
