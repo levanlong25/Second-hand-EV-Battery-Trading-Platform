@@ -2949,3 +2949,231 @@ async function suggestAuctionPrice() {
     }
 }
 
+// mở form review
+function openReviewModal(transactionId, paymentData) {
+  console.log(
+    "Opening Review modal for transaction:",
+    transactionId,
+    "Data:",
+    paymentData
+  );
+
+  const currentUserId = getUserIdFromToken();
+  if (!currentUserId) {
+    showToast("Lỗi: Không thể xác định người dùng hiện tại.", "error");
+    return;
+  }
+
+  if (!paymentData || !paymentData.buyer_id || !paymentData.seller_id) {
+    showToast(
+      "Lỗi: Thiếu thông tin người mua/bán trong dữ liệu giao dịch.",
+      "error"
+    );
+    console.error("Missing buyer_id or seller_id in paymentData:", paymentData);
+    return;
+  }
+
+  let reviewedUserId = null;
+  let reviewedUserRole = "";
+  if (currentUserId == paymentData.buyer_id) {
+    reviewedUserId = paymentData.seller_id;
+    reviewedUserRole = "người bán";
+  } else if (currentUserId == paymentData.seller_id) {
+    reviewedUserId = paymentData.buyer_id;
+    reviewedUserRole = "người mua";
+  } else {
+    showToast(
+      "Lỗi: Bạn không phải người mua hoặc người bán trong giao dịch này.",
+      "error"
+    );
+    return;
+  }
+
+  document.getElementById("review-transaction-id").value = transactionId;
+  document.getElementById("review-reviewed-user-id").value = reviewedUserId;
+  document.getElementById("review-modal-transaction-id").textContent = transactionId;
+
+  document.getElementById(
+    "review-modal-reviewed-username"
+  ).textContent = `ID ${reviewedUserId} (${reviewedUserRole})`;
+
+  document.getElementById("review-form").reset();
+  document.getElementById("review-rating").value = "";
+  openModal("review-modal");
+}
+
+document.getElementById("review-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const submitButton = document.querySelector("#review-form button[type='submit']");
+    const originalButtonText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Đang gửi...';
+ 
+    const reviewIdInput = document.getElementById('review-id-hidden');
+    const reviewId = reviewIdInput ? reviewIdInput.value : null;
+    const isEditing = !!reviewId;  
+
+    try {
+        const transactionId = document.getElementById("review-transaction-id").value;
+        const reviewedUserId = document.getElementById("review-reviewed-user-id").value;
+        const rating = document.getElementById("review-rating").value;
+        const comment = document.getElementById("review-comment").value;
+
+        if (!rating) throw new Error("Vui lòng chọn số sao đánh giá.");
+        if (!comment || comment.trim() === "") throw new Error("Vui lòng nhập bình luận.");
+
+        const body = {
+            transaction_id: parseInt(transactionId),
+            reviewed_user_id: parseInt(reviewedUserId),
+            rating: parseInt(rating),
+            comment: comment
+        };
+
+        let endpoint, method;
+        if (isEditing) { 
+            endpoint = `/review/api/reviews/${reviewId}`;
+            method = 'PUT'; 
+        } else { 
+            endpoint = '/review/api/reviews';
+            method = 'POST';
+        }
+
+        await apiRequest(endpoint, method, body, 'review');
+
+        showToast(isEditing ? "Cập nhật đánh giá thành công!" : "Gửi đánh giá thành công!");
+        closeModal("review-modal");
+         
+        if (document.getElementById('reviews-reports-page').classList.contains('active')) {
+             loadMyReviewsAndReports();
+        }
+
+    } catch (error) {
+        console.error("Lỗi khi gửi/cập nhật đánh giá:", error);
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;  
+        if (reviewIdInput) reviewIdInput.value = ''; 
+    }
+});
+
+// --- HÀM HỖ TRỢ SỬA/XÓA ---
+ 
+async function openEditReviewModal(reviewId) {
+    showLoading();
+    let reviewData;
+    try {
+        // Gọi API GET /reviews/<id> (bạn đã thêm ở backend)
+        reviewData = await apiRequest(`/review/api/reviews/${reviewId}`, 'GET', null, 'review');
+        if (!reviewData) throw new Error("Không tìm thấy review.");
+    } catch (error) {
+        showToast("Không thể tải dữ liệu review để sửa.", "error");
+        hideLoading();
+        return;
+    } finally {
+        hideLoading();
+    }
+
+    // Điền dữ liệu vào form (form này được dùng cho cả TẠO MỚI và SỬA)
+    document.getElementById('review-form').reset();
+    document.getElementById('review-modal-title').textContent = "Cập nhật Đánh giá";
+    
+    // Thêm một input ẩn để lưu review_id, giúp hàm submit biết là đang SỬA
+    let reviewIdInput = document.getElementById('review-id-hidden');
+    if (!reviewIdInput) {
+        reviewIdInput = document.createElement('input');
+        reviewIdInput.type = 'hidden';
+        reviewIdInput.id = 'review-id-hidden';
+        document.getElementById('review-form').appendChild(reviewIdInput);
+    }
+    reviewIdInput.value = reviewData.review_id; // Đặt ID để sửa
+    
+    // Điền các trường thông tin không thể sửa (chỉ để hiển thị)
+    document.getElementById("review-transaction-id").value = reviewData.transaction_id;
+    document.getElementById("review-reviewed-user-id").value = reviewData.reviewed_user_id;
+    document.getElementById("review-modal-transaction-id").textContent = reviewData.transaction_id;
+    document.getElementById("review-modal-reviewed-username").textContent = `ID ${reviewData.reviewed_user_id}`;
+    
+    // Điền các trường có thể sửa
+    document.getElementById("review-rating").value = reviewData.rating;
+    document.getElementById("review-comment").value = reviewData.comment;
+
+    // Đổi text nút submit
+    document.querySelector("#review-form button[type='submit']").textContent = "Cập nhật";
+    openModal('review-modal');
+}
+ 
+async function handleDeleteReview(reviewId) {
+    if (!confirm("Bạn có chắc muốn xóa đánh giá này? Hành động này không thể hoàn tác.")) return;
+
+    showLoading();
+    try {
+        await apiRequest(`/review/api/reviews/${reviewId}`, 'DELETE', null, 'review');
+        showToast("Xóa đánh giá thành công.");
+        loadMyReviewsAndReports();  
+    } catch (error) { 
+    } finally {
+        hideLoading();
+    }
+}
+/**
+ * Hiển thị các đánh giá "bạn đã viết" vào container
+ */
+function renderMyWrittenReviews(reviews) {
+    const container = document.getElementById("my-written-reviews-container");
+    if (!container) return;
+    
+    if (!reviews || !Array.isArray(reviews) || reviews.length === 0) {
+        container.innerHTML = "<p class='text-gray-500'>Bạn chưa viết đánh giá nào.</p>";
+        return;
+    }
+    
+    container.innerHTML = reviews.map(r => `
+        <div class="border p-4 rounded-lg bg-gray-50 relative">
+            <p class="text-sm text-gray-500">Giao dịch: #${r.transaction_id} (Đánh giá User ID: <b>${r.reviewed_user_id}</b>)</p>
+            <p class="font-semibold text-lg text-yellow-500 my-1">${'⭐'.repeat(r.rating)}</p>
+            <p class="italic my-2">"${r.comment}"</p>
+            <p class="text-xs text-gray-400">Ngày: ${new Date(r.created_at).toLocaleDateString('vi-VN')}</p>
+            <div class="absolute top-4 right-4 space-x-3">
+                <button onclick="openEditReviewModal(${r.review_id})" class="text-xs text-blue-600 hover:underline font-semibold">Sửa</button>
+                <button onclick="handleDeleteReview(${r.review_id})" class="text-xs text-red-600 hover:underline font-semibold">Xóa</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+function renderReviewsAboutMe(reviews) {
+    const container = document.getElementById("reviews-about-me-container");
+    if (!container) return;
+
+    if (!reviews || !Array.isArray(reviews) || reviews.length === 0) {
+        container.innerHTML = "<p class='text-gray-500'>Bạn chưa nhận được đánh giá nào.</p>";
+        return;
+    }
+
+    container.innerHTML = reviews.map(r => { 
+        const reviewerName = r.reviewer_username || `ID ${r.reviewer_id}`;
+        const avatarText = (r.reviewer_username ? r.reviewer_username[0] : r.reviewer_id).toString().toUpperCase();
+
+        return `
+        <div class="bg-white shadow-sm border border-gray-100 p-4 rounded-lg flex space-x-4"> 
+            <div class="flex-shrink-0">
+                <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-gray-200 text-gray-600 font-semibold" title="${reviewerName}">
+                    ${avatarText}
+                </span>
+            </div> 
+            <div class="flex-1">
+                <div class="flex justify-between items-center"> 
+                    <p class="text-sm font-semibold text-gray-900">${reviewerName}</p>
+                    <p class="text-xs text-gray-400">${new Date(r.created_at).toLocaleDateString('vi-VN')}</p>
+                </div> 
+                <div class="font-semibold text-lg text-yellow-500 my-1" title="${r.rating} sao">${'⭐'.repeat(r.rating)}</div> 
+                <p class="text-gray-700 italic my-2">"${r.comment || 'Không có bình luận.'}"</p> 
+                <p class="text-xs text-gray-500 mt-2">Từ Giao dịch: <b class="font-medium">#${r.transaction_id}</b></p>
+            </div>
+        </div>
+    `;
+    }).join("");
+}
+ 
+
