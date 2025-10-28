@@ -3343,4 +3343,222 @@ function renderMyFiledReports(reports) {
         </div>
     `).join("");
 }
+// Biến toàn cục chứa danh sách ID và thông tin cơ bản
+let compareList = []; 
+const MAX_COMPARE_ITEMS = 4; // Giới hạn số lượng so sánh
+
+/**
+ * Thêm một sản phẩm vào khay so sánh
+ */
+function addToCompare(id, type, title) {
+    // 1. Kiểm tra nếu đã có trong list
+    if (compareList.find(item => item.id === id)) {
+        showToast("Sản phẩm này đã có trong danh sách so sánh.", "error");
+        return;
+    }
+
+    // 2. Kiểm tra nếu khay đã đầy
+    if (compareList.length >= MAX_COMPARE_ITEMS) {
+        showToast(`Bạn chỉ có thể so sánh tối đa ${MAX_COMPARE_ITEMS} sản phẩm.`, "error");
+        return;
+    }
+
+    // 3. Kiểm tra nếu khác loại sản phẩm
+    if (compareList.length > 0 && compareList[0].type !== type) {
+        showToast("Bạn chỉ có thể so sánh các sản phẩm cùng loại (xe với xe, pin với pin).", "error");
+        return;
+    }
+
+    // 4. Thêm vào danh sách
+    compareList.push({ id, type, title });
+    showToast(`Đã thêm "${title}" vào danh sách so sánh.`);
+
+    // 5. Cập nhật và hiển thị khay
+    showCompareTray();
+}
+
+/**
+ * Xóa một sản phẩm khỏi khay so sánh
+ */
+function removeFromCompare(id) {
+    compareList = compareList.filter(item => item.id !== id);
+    showCompareTray(); // Cập nhật lại khay
+}
+
+/**
+ * Xóa tất cả sản phẩm khỏi khay
+ */
+function clearCompare() {
+    compareList = [];
+    showCompareTray();
+}
+
+/**
+ * Hiển thị/Cập nhật khay so sánh (tray)
+ */
+function showCompareTray() {
+    const tray = document.getElementById("compare-tray");
+    const listContainer = document.getElementById("compare-items-list");
+    const startBtn = document.getElementById("compare-start-btn");
+
+    if (!tray || !listContainer || !startBtn) return;
+
+    if (compareList.length === 0) {
+        // Ẩn khay nếu rỗng
+        tray.classList.add("translate-y-full", "hidden");
+        return;
+    }
+
+    // Hiển thị khay
+    tray.classList.remove("hidden");
+    tray.classList.remove("translate-y-full");
+
+    // Render các item trong khay
+    listContainer.innerHTML = compareList.map(item => `
+        <span class="bg-gray-200 text-gray-700 text-sm font-medium px-3 py-1 rounded-full flex items-center animate-pulse">
+            ${item.title.substring(0, 15)}...
+            <button onclick="removeFromCompare(${item.id})" class="ml-2 text-gray-500 hover:text-red-500" title="Xóa">&times;</button>
+        </span>
+    `).join("");
+    
+    // Cập nhật nút "So Sánh"
+    const count = compareList.length;
+    startBtn.textContent = `So Sánh (${count}/2)`;
+    if (count >= 2) {
+        startBtn.disabled = false;
+        startBtn.textContent = `So Sánh (${count})`;
+    } else {
+        startBtn.disabled = true;
+    }
+}
+
+/**
+ * Bắt đầu so sánh (gọi API và mở Modal)
+ */
+async function startComparison() {
+    if (compareList.length < 2) return;
+
+    const modalContent = document.getElementById("compare-modal-content");
+    openModal("compare-modal");
+    
+    // Set trạng thái loading
+    modalContent.innerHTML = `
+        <div class="text-center p-8">
+             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+             <p class="mt-2 text-gray-500">Đang tải dữ liệu so sánh...</p>
+        </div>`;
+
+    try {
+        // Tạo query string: ?id=1&id=5&id=10
+        const params = new URLSearchParams();
+        compareList.forEach(item => params.append('id', item.id));
+
+        // Gọi API của listing-service
+        const result = await apiRequest(`/listing/api/compare?${params.toString()}`, 'GET', null, 'listing');
+
+        if (result && result.items && result.comparison_type) {
+            // Render bảng dựa trên loại sản phẩm
+            if (result.comparison_type === 'vehicle') {
+                modalContent.innerHTML = _renderCompareVehicle(result.items);
+            } else if (result.comparison_type === 'battery') {
+                modalContent.innerHTML = _renderCompareBattery(result.items);
+            }
+        } else {
+            throw new Error(result.error || "Không nhận được dữ liệu hợp lệ.");
+        }
+    } catch (error) {
+        console.error("Lỗi khi so sánh:", error);
+        modalContent.innerHTML = `<p class="text-center text-red-500 p-8">${error.message}</p>`;
+    }
+}
+
+/**
+ * (Helper) Render bảng so sánh XE
+ */
+function _renderCompareVehicle(items) {
+    // Tạo tiêu đề (Header row)
+    let headers = '<th class="p-3 text-left text-sm font-semibold text-gray-600 uppercase bg-gray-50 rounded-tl-lg">Thông số</th>';
+    items.forEach((item, index) => {
+        const imageUrl = (item.images && item.images[0]) ? apiBaseUrl + item.images[0] : "https://placehold.co/150x100/e2e8f0/e2e8f0?text=+";
+        headers += `
+            <th class="p-3 text-center ${index === items.length - 1 ? 'rounded-tr-lg' : ''}">
+                <img src="${imageUrl}" alt="${item.title}" class="w-32 h-20 object-cover rounded-md mx-auto mb-2">
+                <p class="font-semibold text-indigo-600 text-sm">${item.title}</p>
+            </th>`;
+    });
+
+    // Tạo các hàng (Data rows)
+    const rows = [
+        { label: "Giá bán", key: "price", format: (val) => `${Number(val || 0).toLocaleString()} VNĐ` },
+        { label: "Hãng xe", key: "brand", details: true },
+        { label: "Dòng xe", key: "model", details: true },
+        { label: "Năm sản xuất", key: "year", details: true },
+        { label: "Số KM đã đi", key: "mileage", details: true, format: (val) => `${Number(val || 0).toLocaleString()} km` },
+        { label: "Trạng thái", key: "status" }
+    ];
+
+    let body = rows.map(row => {
+        let rowHtml = `<tr class="border-b"><td class="p-3 font-medium text-gray-700 bg-gray-50">${row.label}</td>`;
+        items.forEach(item => {
+            let value = row.details ? item.vehicle_details?.[row.key] : item[row.key];
+            value = value ?? "N/A"; // Giá trị mặc định
+            if (row.format) value = row.format(value); // Định dạng nếu có
+            rowHtml += `<td class="p-3 text-center text-gray-800">${value}</td>`;
+        });
+        rowHtml += `</tr>`;
+        return rowHtml;
+    }).join("");
+
+    return `
+        <table class="min-w-full border border-gray-200 rounded-lg">
+            <thead><tr class="border-b-2 border-gray-200">${headers}</tr></thead>
+            <tbody>${body}</tbody>
+        </table>
+    `;
+}
+
+/**
+ * (Helper) Render bảng so sánh PIN
+ */
+function _renderCompareBattery(items) {
+    // Tạo tiêu đề (Header row)
+    let headers = '<th class="p-3 text-left text-sm font-semibold text-gray-600 uppercase bg-gray-50 rounded-tl-lg">Thông số</th>';
+    items.forEach((item, index) => {
+        const imageUrl = (item.images && item.images[0]) ? apiBaseUrl + item.images[0] : "https://placehold.co/150x100/e2e8f0/e2e8f0?text=+";
+        headers += `
+            <th class="p-3 text-center ${index === items.length - 1 ? 'rounded-tr-lg' : ''}">
+                <img src="${imageUrl}" alt="${item.title}" class="w-32 h-20 object-cover rounded-md mx-auto mb-2">
+                <p class="font-semibold text-indigo-600 text-sm">${item.title}</p>
+            </th>`;
+    });
+
+    // Tạo các hàng (Data rows)
+    const rows = [
+        { label: "Giá bán", key: "price", format: (val) => `${Number(val || 0).toLocaleString()} VNĐ` },
+        { label: "Nhà sản xuất", key: "manufacturer", details: true },
+        { label: "Dung lượng", key: "capacity_kwh", details: true, format: (val) => `${val ?? 'N/A'} kWh` },
+        { label: "Tình trạng pin", key: "health_percent", details: true, format: (val) => `${val ?? 'N/A'} %` },
+        { label: "Trạng thái", key: "status" }
+    ];
+
+    let body = rows.map(row => {
+        let rowHtml = `<tr class="border-b"><td class="p-3 font-medium text-gray-700 bg-gray-50">${row.label}</td>`;
+        items.forEach(item => {
+            let value = row.details ? item.battery_details?.[row.key] : item[row.key];
+            value = value ?? "N/A"; // Giá trị mặc định
+            if (row.format) value = row.format(value); // Định dạng nếu có
+            rowHtml += `<td class="p-3 text-center text-gray-800">${value}</td>`;
+        });
+        rowHtml += `</tr>`;
+        return rowHtml;
+    }).join("");
+
+    return `
+        <table class="min-w-full border border-gray-200 rounded-lg">
+            <thead><tr class="border-b-2 border-gray-200">${headers}</tr></thead>
+            <tbody>${body}</tbody>
+        </table>
+    `;
+}
+
 

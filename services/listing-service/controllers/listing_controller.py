@@ -623,6 +623,37 @@ def update_listing_status(listing_id):
     return jsonify({"message": message, "listing": serialize_listing(listing)}), 200
 
 
+@api_bp.route('/compare', methods=['GET'])
+def compare_listings():
+    """
+    Lấy dữ liệu so sánh cho một danh sách các ID tin đăng.
+    Nhận ID từ query params: /compare?id=1&id=5&id=10
+    """
+    listing_ids = request.args.getlist('id', type=int) # Lấy danh sách ID từ URL
+
+    if not listing_ids:
+        return jsonify({"error": "Không có 'id' nào được cung cấp."}), 400
+
+    if len(listing_ids) < 2:
+        return jsonify({"error": "Cần ít nhất 2 sản phẩm để so sánh."}), 400
+
+    if len(listing_ids) > 4: # Giới hạn so sánh (ví dụ: 4 sản phẩm)
+        return jsonify({"error": "Chỉ có thể so sánh tối đa 4 sản phẩm."}), 400
+
+    # Gọi service (bạn cần tạo ComparisonService như code ở lượt trước)
+    comparison_type, data, message = ComparisonService.get_comparison_data(listing_ids)
+
+    if not comparison_type: 
+        # Nếu service trả về lỗi (ví dụ: khác loại, không tìm thấy)
+        return jsonify({"error": message}), 400 # 400 Bad Request (hoặc 404)
+    
+    return jsonify({
+        "message": message,
+        "comparison_type": comparison_type, # 'vehicle' hoặc 'battery'
+        "items": data # List các object sản phẩm
+    }), 200
+
+
 
 
 
