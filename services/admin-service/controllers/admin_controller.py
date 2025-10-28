@@ -435,3 +435,25 @@ def get_revenue_trend():
     """(Admin) Lấy xu hướng doanh thu từ Transaction Service."""
     data, status_code = call_transaction_service('GET', '/stats/revenue-trend')
     return jsonify(data), status_code
+
+@admin_bp.route("/fees", methods=["GET"])
+@admin_required()
+def get_fee_config(): 
+# Gọi internal API của transaction-service
+    data, status_code = call_transaction_service('GET', '/fees')
+    return jsonify(data), status_code
+
+@admin_bp.route("/fees", methods=["PUT"])
+@admin_required()
+def update_fee_config(): 
+    req_data = request.get_json()
+    if not req_data:
+        return jsonify(error="Thiếu JSON body"), 400
+
+    # Truyền thẳng request data (chứa listing_fee_rate, auction_fee_rate)
+    data, status_code = call_transaction_service('PUT', '/fees', json_data=req_data)
+    return jsonify(data), status_code
+
+
+
+    

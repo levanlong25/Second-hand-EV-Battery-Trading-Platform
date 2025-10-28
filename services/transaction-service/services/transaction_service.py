@@ -388,3 +388,53 @@ class TransactionService:
         except Exception as e:
             logger.error(f"Lỗi khi lấy xu hướng doanh thu: {e}", exc_info=True)
             return None, "Lỗi máy chủ khi lấy xu hướng doanh thu."
+        
+    
+    @staticmethod
+    def get_fee_config():
+        """
+        Lấy cấu hình phí hiện tại. 
+        Nếu chưa có, tạo một dòng mặc định.
+        """
+        fee_config = db.session.get(FeeConfig, 1)
+        
+        if not fee_config:
+            logger.info("Không tìm thấy FeeConfig, tạo mới với giá trị mặc định.")
+            try:
+                # Tạo mới với giá trị default trong model (0.025 và 0.05)
+                fee_config = FeeConfig(id=1) 
+                db.session.add(fee_config)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Lỗi khi tạo FeeConfig mặc định: {e}", exc_info=True)
+                # Trả về giá trị mặc định cứng nếu không tạo được
+                return {'listing_fee_rate': 0.025, 'auction_fee_rate': 0.05}
+
+        return fee_config.to_dict()
+
+    @staticmethod
+    def update_fee_config(listing_rate, auction_rate):
+        """
+        Cập nhật cấu hình phí.
+        """
+        fee_config = db.session.get(FeeConfig, 1)
+        if not fee_config:
+            # Nếu chưa có, tạo mới
+            fee_config = FeeConfig(id=1)
+            db.session.add(fee_config)
+
+        try:
+            # Cập nhật giá trị
+            fee_config.listing_fee_rate = float(listing_rate)
+            fee_config.auction_fee_rate = float(auction_rate)
+            
+            db.session.commit()
+            logger.info(f"Cập nhật FeeConfig: Listing={listing_rate}, Auction={auction_rate}")
+            return fee_config.to_dict(), None # Trả về data và không có lỗi
+        except (ValueError, TypeError):
+            return None, "Giá trị tỷ lệ phí không hợp lệ."
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Lỗi DB khi cập nhật FeeConfig: {e}", exc_info=True)
+            return None, "Lỗi máy chủ nội bộ khi cập nhật phí."

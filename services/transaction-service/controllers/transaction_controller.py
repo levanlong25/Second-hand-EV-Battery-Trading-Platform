@@ -275,8 +275,7 @@ def get_single_payment_status(transaction_id):
     except Exception as e:
         print(f"!!! Lỗi khi lấy payment status cho user {transaction_id}: {e}")
         return jsonify({"error": "Lỗi máy chủ nội bộ"}), 500
-#sửa hàm=============
-#====================
+
 @transaction_api.route('/transactions/<int:transaction_id>/payment', methods=['POST'])
 @jwt_required() 
 def create_payment_route(transaction_id): 
@@ -291,24 +290,88 @@ def create_payment_route(transaction_id):
     if transaction.buyer_id != current_user_id:
         return jsonify({"error": "Chỉ người mua mới có thể thanh toán."}), 403
 
+    listing_id = transaction.listing_id
+    auction_id = transaction.auction_id
+
+    # 1. Đọc tỷ lệ phí từ DB (qua service)
     try:
+        fee_config = TransactionService.get_fee_config()
+    except Exception as e:
+        logger.error(f"Lỗi nghiêm trọng: Không thể đọc FeeConfig: {e}")
+        return jsonify({"error": "Lỗi hệ thống khi lấy cấu hình phí."}), 500
+
+    percentage = 0.0
+    fee_type = None
+    product_id = None
+
+    if listing_id is not None: 
+        percentage = fee_config.get('listing_fee_rate', 0.025) # Lấy phí listing, dự phòng 2.5%
+        fee_type = 'listing'
+        product_id = listing_id
+    elif auction_id is not None:
+        percentage = fee_config.get('auction_fee_rate', 0.05) # Lấy phí auction, dự phòng 5%
+        fee_type = 'auction'
+        product_id = auction_id
+    else: 
+        logger.error(f"Transaction {transaction_id} không có listing_id lẫn auction_id.")
+        return jsonify({"error": "Lỗi dữ liệu giao dịch: không tìm thấy ID sản phẩm."}), 500
+
+    try:
+        # 2. Tạo bản ghi Fee  
+        # Chuyển đổi an toàn sang Decimal  
+        fee_amount = Decimal(str(transaction.final_price)) * Decimal(str(percentage))
+        fee_amount = float(fee_amount) # Lưu lại thành float nếu model là Float
+        
+        # (Kiểm tra xem Fee đã tồn tại chưa)
+        existing_fee = Fee.query.filter_by(transaction_id=transaction_id).first()
+        if not existing_fee:
+            new_fee = Fee(
+                transaction_id=transaction_id,
+                fee_type=fee_type,
+                product_id=product_id,
+                buyer_id=transaction.buyer_id,
+                seller_id=transaction.seller_id,
+                percentage=percentage,
+                amount=fee_amount
+            )
+            db.session.add(new_fee) 
+        else:
+            # Nếu phí đã tồn tại, dùng lại fee_amount cũ
+            fee_amount = existing_fee.amount
+
+        # 3. Tính tổng tiền thanh toán
+        # Đảm bảo data['amount'] là giá gốc (final_price)
+        original_amount = Decimal(str(data['amount']))
+        final_amount = float(original_amount + Decimal(str(fee_amount)))
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Lỗi khi tạo Fee hoặc tính toán: {e}", exc_info=True)
+        return jsonify({"error": f"Lỗi khi xử lý phí giao dịch: {str(e)}"}), 500
+
+    try:
+        # 4. Tạo Payment với tổng số tiền (đã bao gồm phí)
         new_payment, message = TransactionService.create_payment(
             transaction_id=transaction_id,
             payment_method=data['payment_method'],
-            amount=data['amount']
+            amount=final_amount # Sử dụng tổng tiền mới
         )
         
         if not new_payment: 
             if "Transaction không tồn tại" in message:
                 return jsonify({"error": message}), 404
-            else:  
+            else: 
                 return jsonify({"error": message}), 400 
 
+        # Commit cả Fee và Payment cùng lúc
+        db.session.commit() 
         return jsonify({
             "message": message,
             "payment": serialize_payment(new_payment)
-        }), 201 # 201 Created
+        }), 201
     except Exception as e:
+        db.session.rollback() # Rollback cả new_fee nếu có lỗi
+        logger.error(f"Lỗi khi tạo Payment: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 

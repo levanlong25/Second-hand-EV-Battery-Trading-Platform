@@ -3562,3 +3562,75 @@ function _renderCompareBattery(items) {
 }
 
 
+async function loadFeeConfig() {
+  const form = document.getElementById('fees-form');
+  if (!form) return; // Chỉ chạy nếu đang ở trang có form
+
+  const listRateInput = document.getElementById('listing-fee-rate');
+  const auctionRateInput = document.getElementById('auction-fee-rate');
+
+  try {
+    // Gọi API admin-service
+    const config = await apiRequest("/admin/admin/fees", "GET");
+
+    if (config && config.listing_fee_rate !== undefined) {
+      listRateInput.value = config.listing_fee_rate;
+      auctionRateInput.value = config.auction_fee_rate;
+    } else {
+      throw new Error("Không nhận được dữ liệu cấu hình phí.");
+    }
+
+  } catch (error) {
+    console.error("Lỗi khi tải cấu hình phí:", error);
+    // apiRequest đã hiển thị toast lỗi
+    listRateInput.value = 'Lỗi';
+    auctionRateInput.value = 'Lỗi';
+  } finally {}
+}
+
+/**
+ * Xử lý sự kiện submit form cấu hình phí
+ */
+async function handleFeeFormSubmit(event) {
+  event.preventDefault();
+
+  const submitButton = document.querySelector("#fees-form button[type='submit']");
+  submitButton.disabled = true;
+  submitButton.textContent = 'Đang lưu...';
+
+  try {
+    const listingRate = parseFloat(document.getElementById('listing-fee-rate').value);
+    const auctionRate = parseFloat(document.getElementById('auction-fee-rate').value);
+
+    if (isNaN(listingRate) || isNaN(auctionRate) || listingRate < 0 || auctionRate < 0) {
+      throw new Error("Vui lòng nhập tỷ lệ phí hợp lệ (là số không âm).");
+    }
+
+    const body = {
+      listing_fee_rate: listingRate,
+      auction_fee_rate: auctionRate
+    };
+
+    // Gọi API cập nhật
+    const result = await apiRequest("/admin/admin/fees", "PUT", body);
+
+    showToast(result.message || "Cập nhật phí thành công!");
+
+    // Cập nhật lại input (chuẩn hóa format)
+    if (result.fee_config) {
+      document.getElementById('listing-fee-rate').value = result.fee_config.listing_fee_rate;
+      document.getElementById('auction-fee-rate').value = result.fee_config.auction_fee_rate;
+    }
+
+  } catch (error) {
+    console.error("Lỗi khi cập nhật phí:", error);
+    // apiRequest đã hiển thị toast lỗi
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Lưu Cấu hình Phí';
+  }
+}
+
+
+
+

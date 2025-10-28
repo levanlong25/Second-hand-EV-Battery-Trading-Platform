@@ -128,3 +128,37 @@ def check_listing_transaction(listing_id):
     except Exception as e:
         logger.error(f"Lỗi khi kiểm tra giao dịch cho listing {listing_id}: {e}", exc_info=True)
         return jsonify(error="Lỗi máy chủ nội bộ khi kiểm tra giao dịch."), 500
+    
+@internal_bp.route("/fees", methods=["GET"])
+@internal_api_key_required()
+def internal_get_fees():
+    """Admin service gọi để lấy cấu hình phí hiện tại."""
+    try:
+        fee_config_dict = TransactionService.get_fee_config()
+        return jsonify(fee_config_dict), 200
+    except Exception as e:
+        logger.error(f"Lỗi internal_get_fees: {e}", exc_info=True)
+        return jsonify(error="Lỗi máy chủ nội bộ khi lấy cấu hình phí."), 500
+
+@internal_bp.route("/fees", methods=["PUT"])
+@internal_api_key_required()
+def internal_update_fees(): 
+    data = request.get_json()
+    if not data:
+        return jsonify(error="Thiếu JSON body"), 400
+
+    listing_rate = data.get('listing_fee_rate')
+    auction_rate = data.get('auction_fee_rate')
+
+    if listing_rate is None or auction_rate is None:
+        return jsonify(error="Thiếu listing_fee_rate hoặc auction_fee_rate."), 400
+
+    try:
+        updated_config, error = TransactionService.update_fee_config(listing_rate, auction_rate)
+        if error:
+            return jsonify(error=error), 400
+        
+        return jsonify(message="Cập nhật phí thành công.", fee_config=updated_config), 200
+    except Exception as e:
+        logger.error(f"Lỗi internal_update_fees: {e}", exc_info=True)
+        return jsonify(error="Lỗi máy chủ nội bộ khi cập nhật phí."), 500
