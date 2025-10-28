@@ -1,6 +1,7 @@
 from models.transaction import Transaction
 from models.payment import Payment
 from models.fee import Fee
+from models.fee_config import FeeConfig
 from models.contract import Contract
 from app import db
 from decimal import Decimal 
@@ -11,6 +12,8 @@ import hashlib
 import json
 import uuid
 import logging  
+from sqlalchemy import func, cast, Date
+from datetime import datetime, timezone, timedelta 
 
 logger = logging.getLogger(__name__)  
 
@@ -315,3 +318,8 @@ class TransactionService:
         amount_int = int(amount)
         fake_success_url = f"{return_url}?resultCode={resultCode}&message={message}&orderId={orderId}&amount={amount_int}"
         return fake_success_url 
+    
+    #thêm code 
+
+
+    #===thêm code 2

@@ -19,7 +19,7 @@ from flask_jwt_extended.exceptions import NoAuthorizationError, InvalidHeaderErr
 logger = logging.getLogger(__name__)
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 AUCTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL', 'http://auction-service:5002')
-TRANSACTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL', 'http://transaction-service:5003')
+TRANSACTION_SERVICE_URL = os.environ.get('TRANSACTION_SERVICE_URL', 'http://transaction-service:5003')
 REQUEST_TIMEOUT = 1
 
 
@@ -77,6 +77,33 @@ def auction_status(resource_type, resource_id):
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to connect or request Auction Service (Resource ID: {resource_id}): {e}")
         return { "auction_status_resource": None}
+
+def has_active_transaction(listing_id: int): 
+    if not listing_id or listing_id <= 0:
+        return False, "Invalid ID"
+     
+    url = f"{TRANSACTION_SERVICE_URL}/internal/check-listing-transaction/{listing_id}"
+     
+    internal_api_key = os.environ.get('INTERNAL_API_KEY')
+    if not internal_api_key:
+        logger.error(f"Kiểm tra giao dịch Listing {listing_id}: INTERNAL_API_KEY không được cấu hình.") 
+        return True, "Lỗi cấu hình nội bộ (API Key)."
+
+    headers = {'X-Internal-Api-Key': internal_api_key}
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        
+        if response.status_code == 200:
+            data = response.json() 
+            return data.get('has_transaction', False), data.get('status', None)
+        else: 
+            logger.warning(f"Transaction Service trả về lỗi {response.status_code} khi kiểm tra listing {listing_id}: {response.text}") 
+            return True, f"Lỗi kiểm tra giao dịch (Code: {response.status_code})."
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Không thể kết nối Transaction Service để kiểm tra listing {listing_id}: {e}") 
+        return True, f"Lỗi kết nối dịch vụ giao dịch."
 # --- Custom Decorator for Admin Role ---
 def admin_required():
     def wrapper(fn):
@@ -372,8 +399,28 @@ def remove_my_battery_from_sale(battery_id):
     current_user_id = int(get_jwt_identity())
     claims = get_jwt()
     current_user_role = claims.get("role")
+ 
+    listing = ListingService.get_listing_by_battery_id(battery_id)
+    if not listing:
+        return jsonify({"error": "Không tìm thấy tin đăng nào cho pin này."}), 404
+ 
+    if listing.seller_id != current_user_id and current_user_role != 'admin':
+         return jsonify({"error": "Bạn không có quyền gỡ tin đăng này."}), 403
+ 
+    try:
+        has_tx, tx_status = has_active_transaction(listing.listing_id)
+        if has_tx:
+            logger.warning(f"Từ chối gỡ: User {current_user_id} cố gỡ Listing (Pin) {listing.listing_id} đã có giao dịch (Status: {tx_status}).")
+            return jsonify({"error": f"Không thể gỡ tin đăng này vì đã phát sinh giao dịch (trạng thái: {tx_status})."}), 400
+    
+    except Exception as e:
+        logger.error(f"Lỗi khi kiểm tra giao dịch của listing (Pin) {listing.listing_id}: {e}")
+        return jsonify({"error": "Lỗi máy chủ khi kiểm tra giao dịch."}), 500
+     
     success, message = BatteryService.remove_battery_from_listing(current_user_id, current_user_role, battery_id)
-    if not success: return jsonify({"error": message}), 404
+    if not success: 
+        return jsonify({"error": message}), 404 
+    
     return jsonify({"message": message}), 200
 
 @api_bp.route("/my-assets/vehicles/<int:vehicle_id>/list", methods=["POST"])
@@ -393,8 +440,28 @@ def remove_my_vehicle_from_sale(vehicle_id):
     current_user_id = int(get_jwt_identity())
     claims = get_jwt()
     current_user_role = claims.get("role")
+ 
+    listing = ListingService.get_listing_by_vehicle_id(vehicle_id)
+    if not listing:
+        return jsonify({"error": "Không tìm thấy tin đăng nào cho xe này."}), 404
+ 
+    if listing.seller_id != current_user_id and current_user_role != 'admin':
+         return jsonify({"error": "Bạn không có quyền gỡ tin đăng này."}), 403
+ 
+    try:
+        has_tx, tx_status = has_active_transaction(listing.listing_id)
+        if has_tx:
+            logger.warning(f"Từ chối gỡ: User {current_user_id} cố gỡ Listing (Xe) {listing.listing_id} đã có giao dịch (Status: {tx_status}).")
+            return jsonify({"error": f"Không thể gỡ tin đăng này vì đã phát sinh giao dịch (trạng thái: {tx_status})."}), 400
+    
+    except Exception as e:
+        logger.error(f"Lỗi khi kiểm tra giao dịch của listing (Xe) {listing.listing_id}: {e}")
+        return jsonify({"error": "Lỗi máy chủ khi kiểm tra giao dịch."}), 500
+     
     success, message = VehicleService.remove_vehicle_from_listing(current_user_id, current_user_role, vehicle_id)
-    if not success: return jsonify({"error": message}), 404
+    if not success: 
+        return jsonify({"error": message}), 404  
+
     return jsonify({"message": message}), 200
  
 # ============================================
@@ -495,34 +562,6 @@ def get_battery_details(battery_id):
 # === API ===
 # ============================================
 
-@api_bp.route('/compare', methods=['GET'])
-def compare_listings(): 
-    listing_ids = request.args.getlist('id', type=int)
-
-    if not listing_ids:
-        return jsonify({"error": "No 'id' parameters provided."}), 400
-    
-    if len(listing_ids) < 2:
-         return jsonify({"error": "At least two IDs are required to compare."}), 400
-    
-    if len(listing_ids) > 5: 
-         return jsonify({"error": "Cannot compare more than 5 items at a time."}), 400
- 
-    comparison_type, data, message = ComparisonService.get_comparison_data(listing_ids)
-
-    if not comparison_type: 
-        return jsonify({"error": message}), 404
-     
-    return jsonify({
-        "message": message,
-        "comparison_type": comparison_type,
-        "items": data
-    }), 200
-
-# ============================================
-# === API ===
-# ============================================
-
 @api_bp.route('/listings/<int:listing_id>', methods=['PUT'])
 @jwt_required()
 def update_listing(listing_id):
@@ -539,8 +578,20 @@ def update_listing(listing_id):
 def remove_listing(listing_id):
     user_id = int(get_jwt_identity())
     user_role = get_jwt().get('role')
+    try:
+        has_tx, tx_status = has_active_transaction(listing_id)
+        if has_tx: 
+            logger.warning(f"Từ chối xóa: User {user_id} (Role: {user_role}) cố xóa Listing {listing_id} đã có giao dịch (Status: {tx_status}).")
+            return jsonify({"error": f"Không thể xóa tin đăng này vì đã phát sinh giao dịch (trạng thái: {tx_status})."}), 400 # 400 Bad Request
+    
+    except Exception as e:
+        logger.error(f"Lỗi nghiêm trọng khi kiểm tra giao dịch của listing {listing_id}: {e}")
+        return jsonify({"error": "Lỗi máy chủ khi kiểm tra giao dịch."}), 500 
     success, message = ListingService.delete_listing(listing_id, user_id, user_role)
-    if not success: return jsonify({"error": message}), 400
+    if not success:  
+        status_code = 403 if "quyền" in message.lower() else 404
+        return jsonify({"error": message}), status_code
+    
     return jsonify({"message": message}), 200
 
 # ================================
@@ -570,3 +621,9 @@ def update_listing_status(listing_id):
     if not listing: return jsonify({"error": message}), 404
         
     return jsonify({"message": message, "listing": serialize_listing(listing)}), 200
+
+
+
+
+
+

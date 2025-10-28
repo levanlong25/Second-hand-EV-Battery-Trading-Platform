@@ -107,7 +107,14 @@ function showDashboard() {
   loadAllListings();
   loadAllAuctions();
   loadAllTransactions();
-  loadAllReports('pending')
+  loadAllReports('pending');
+  loadFeeConfig();  
+  loadStatistics(); 
+  const feeForm = document.getElementById('fees-form');
+  if (feeForm && !feeForm._eventsAttached) {  
+     feeForm.addEventListener("submit", handleFeeFormSubmit);
+     feeForm._eventsAttached = true;
+  }
 }
 
 // --- DATA LOADING & RENDERING ---
@@ -786,3 +793,5 @@ function formatAdminReportStatus(status) {
             return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">${status}</span>`;
     }
 }
+
+

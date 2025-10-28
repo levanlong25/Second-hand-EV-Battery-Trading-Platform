@@ -5,6 +5,7 @@ from app import db
 from models.transaction import Transaction
 from models.contract import Contract
 from models.payment import Payment
+from models.fee import Fee
 import uuid
 import os
 import requests
@@ -12,6 +13,7 @@ import logging
 from services.transaction_service import TransactionService
 from functools import wraps
 from sqlalchemy.orm import joinedload
+from decimal import Decimal 
 
 USER_SERVICE_URL = os.environ.get('USER_SERVICE_URL', 'http://user-service:5000')  
 LISTING_SERVICE_URL = os.environ.get('LISTING_SERVICE_URL', 'http://listing-service:5001')
@@ -273,7 +275,8 @@ def get_single_payment_status(transaction_id):
     except Exception as e:
         print(f"!!! Lỗi khi lấy payment status cho user {transaction_id}: {e}")
         return jsonify({"error": "Lỗi máy chủ nội bộ"}), 500
-
+#sửa hàm=============
+#====================
 @transaction_api.route('/transactions/<int:transaction_id>/payment', methods=['POST'])
 @jwt_required() 
 def create_payment_route(transaction_id): 
@@ -307,6 +310,7 @@ def create_payment_route(transaction_id):
         }), 201 # 201 Created
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @transaction_api.route('/transactions/<int:transaction_id>/status', methods=['PATCH'])
 @jwt_required() 
@@ -430,6 +434,7 @@ def confirm_payment_route(transaction_id):
             try: 
                 payment.payment_status = 'pending'
                 transaction.transaction_status = 'paid'
+                auction_id = transaction.auction_id
                 listing_id = transaction.listing_id 
                 if listing_id:
                     internal_token = current_app.config.get('INTERNAL_SERVICE_TOKEN')
@@ -447,9 +452,6 @@ def confirm_payment_route(transaction_id):
                         timeout=REQUEST_TIMEOUT
                     )
                     response.raise_for_status() 
-                    db.session.commit()
-                    logger.info(f"Bank Payment: Xử lý thành công TXN {transaction_id}. Payment -> 'pending', Listing -> 'sold'.")
-                
                 db.session.commit()
                 logger.info(f"Bank Payment: Xử lý thành công TXN {transaction_id}. Payment -> 'pending'.")
             
@@ -505,6 +507,7 @@ def momo_webhook():
                     db.session.rollback()
                     return jsonify({"error": "Dữ liệu nội bộ không nhất quán"}), 500 
                 transaction.transaction_status = 'paid'
+                auction_id = transaction.auction_id
                 listing_id = transaction.listing_id 
                 if listing_id:
                     internal_token = current_app.config.get('INTERNAL_SERVICE_TOKEN')
@@ -513,7 +516,7 @@ def momo_webhook():
                         return jsonify({"error": "Lỗi cấu hình máy chủ nội bộ."}), 500
                     headers = {'Authorization': internal_token}
                     url = f"{LISTING_SERVICE_URL}/api/listings/{listing_id}/status"
-                    payload = {'status': 'sold'}
+                    payload = {'status': 'sold'} 
                     response = requests.put(
                         url, 
                         json=payload, 

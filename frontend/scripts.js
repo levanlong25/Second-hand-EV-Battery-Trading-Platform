@@ -838,6 +838,14 @@ function renderListings(listings) {
                 <div class="mt-auto flex justify-between items-center">
                     <p class="text-indigo-600 font-bold text-xl">${priceFormatted} VNĐ</p>
                     <div class="flex items-center space-x-2">
+                        <button 
+                            onclick="addToCompare(${item.listing_id}, '${item.listing_type}', '${item.title}')" 
+                            title="Thêm vào So sánh" 
+                            class="text-gray-400 hover:text-blue-500 p-2 rounded-full hover:bg-gray-100 transition duration-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v10H5V5zm2 1a1 1 0 011 1v6a1 1 0 11-2 0V7a1 1 0 011-1zm4 0a1 1 0 011 1v6a1 1 0 11-2 0V7a1 1 0 011-1z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
                         <button onclick="addToWatchlist(${item.listing_id})" title="Thêm vào danh sách theo dõi" class="text-gray-400 hover:text-teal-500 p-2 rounded-full hover:bg-gray-100 transition duration-300">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -1799,6 +1807,7 @@ async function loadMyTransactions() {
 /** Mua xe/pin. */
 async function buyListing(listingId, sellerId, finalPrice) {
   const token = localStorage.getItem("jwt_token");
+  console.log(listingId, sellerId, finalPrice)
 
   if (!token) {
     showToast("Bạn cần đăng nhập để thực hiện giao dịch.", "error");
@@ -3334,5 +3343,4 @@ function renderMyFiledReports(reports) {
         </div>
     `).join("");
 }
-
 

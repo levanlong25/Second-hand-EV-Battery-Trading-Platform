@@ -159,6 +159,7 @@ def call_transaction_service(method, endpoint, json_data=None):
     except requests.exceptions.RequestException as e:
         logger.error(f"Lỗi kết nối đến Transaction Service ({url}): {e}")
         return {"error": f"Không thể kết nối đến Transaction Service: {e}"}, 503
+    
 def call_review_service(method, endpoint, json_data=None):
     """Hàm tiện ích để gọi API nội bộ của Review Service."""
     if not REVIEW_SERVICE_URL or not INTERNAL_API_KEY:
@@ -418,10 +419,5 @@ def update_report_status(report_id):
     data, status_code = call_report_service('PUT', f'/reports/{report_id}/status', json_data=req_data)
     return jsonify(data), status_code
 
-@admin_bp.route("/reports/by-user/<int:user_id>", methods=["GET"])
-@admin_required()
-def get_reports_by_user(user_id):
-    """(Admin) Lấy các báo cáo ĐÃ GỬI bởi một user."""
-    # Gọi API nội bộ của report-service
-    data, status_code = call_report_service('GET', f'/reports/by-reporter/{user_id}')
-    return jsonify(data), status_code
+#========thêm hàm
+#===============

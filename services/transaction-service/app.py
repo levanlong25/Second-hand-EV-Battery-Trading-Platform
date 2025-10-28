@@ -19,6 +19,7 @@ migrate = Migrate(version_table='alembic_version_transactions')
 from models.transaction import Transaction
 from models.payment import Payment
 from models.fee import Fee
+from models.fee_config import FeeConfig
 from models.contract import Contract
 
 def create_app(): 

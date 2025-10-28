@@ -544,6 +544,31 @@
             </form>
         </div>
     </div>
+     <div id="contract-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold mb-4">Hợp Đồng Giao Dịch</h3>
+            <input type="hidden" id="contract-transaction-id">
+            
+                        <div id="contract-loading-spinner" class="text-center py-16">
+                <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+                <p class="mt-4 text-gray-600">Đang tải chi tiết hợp đồng...</p>
+            </div>
+
+            <div id="contract-content-wrapper" class="space-y-4 hidden">
+                <div class="prose p-4 border rounded-md bg-gray-50 h-64 overflow-y-auto">
+                    <p id="contract-terms-content" style="white-space: pre-line;">Đang tải điều khoản hợp đồng...</p>
+                    <div class="flex justify-between items-center">
+                        <div id="buyer-signature-status" class="text-sm font-medium text-gray-500"></div>
+                        <div id="seller-signature-status" class="text-sm font-medium text-gray-500"></div>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeModal('contract-modal')" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Đóng</button>
+                    <button id="sign-contract-button" type="button" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Xác Nhận & Ký Hợp Đồng</button>
+                </div>
+            </div>
+        </div>
+    </div>
         <!-- Payment Modal -->
     <div id="payment-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
@@ -758,7 +783,49 @@
             </form>
         </div>
     </div>
-
+    <div id="compare-tray" class="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 p-4 transform translate-y-full transition-transform z-40 hidden">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+        <div>
+            <h4 class="font-semibold text-gray-800">Đang so sánh:</h4>
+            <div id="compare-items-list" class="flex space-x-2 mt-1">
+                <!-- Các item so sánh sẽ được thêm vào đây bằng JS -->
+                <!-- Ví dụ item:
+                <span class="bg-gray-200 text-gray-700 text-sm font-medium px-3 py-1 rounded-full flex items-center">
+                    Item 1
+                    <button class="ml-2 text-gray-500 hover:text-red-500">&times;</button>
+                </span>
+                -->
+            </div>
+        </div>
+        <div class="space-x-3">
+            <button onclick="clearCompare()" class="text-sm text-gray-600 hover:text-red-600 font-medium py-2 px-4 rounded-lg hover:bg-gray-100">Xóa tất cả</button>
+            <button onclick="startComparison()" id="compare-start-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-gray-400" disabled>
+                So Sánh (0/2)
+            </button>
+        </div>
+    </div>
+</div>
+    <div id="compare-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto relative">
+        <!-- Nút đóng modal -->
+        <button type="button" onclick="closeModal('compare-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+        
+        <h3 class="text-2xl font-bold mb-6 text-center">So Sánh Sản Phẩm</h3>
+        
+        <!-- Vùng chứa bảng so sánh -->
+        <div id="compare-modal-content" class="overflow-x-auto">
+            <!-- Bảng so sánh sẽ được render vào đây bằng JS -->
+            <div classs="text-center p-8">
+                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+                 <p class="mt-2 text-gray-500">Đang tải dữ liệu so sánh...</p>
+            </div>
+        </div>
+    </div>
+</div>
     <!-- Loading Spinner -->
     <div id="loading-spinner" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
         <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>

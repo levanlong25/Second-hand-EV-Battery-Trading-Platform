@@ -6,6 +6,7 @@ import logging
 from app import db # Import db instance
 from models.payment import Payment
 from models.transaction import Transaction # Cần Transaction để Join
+from services.transaction_service import TransactionService
 # Import các serializer cần thiết
 from .transaction_controller import serialize_payment_for_admin # Import serializer admin
 
@@ -74,3 +75,10 @@ def internal_approve_payment(payment_id):
         db.session.rollback()
         logger.error(f"Lỗi internal_approve_payment {payment_id}: {e}", exc_info=True)
         return jsonify(error="Lỗi máy chủ nội bộ khi duyệt payment."), 500
+    
+    
+#=========thêm hàm
+#===============
+
+    
+#===========thêm code 2
