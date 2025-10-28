@@ -795,3 +795,131 @@ function formatAdminReportStatus(status) {
 }
 
 
+// Biến toàn cục để giữ instance của biểu đồ
+let myRevenueChart = null;
+
+/**
+ * Tải tất cả dữ liệu thống kê (KPIs và Biểu đồ)
+ */
+async function loadStatistics() {
+    document.getElementById('stats-total-revenue').textContent = 'Đang tải...';
+    document.getElementById('stats-total-transactions').textContent = 'Đang tải...';
+    document.getElementById('stats-pending-payments').textContent = 'Đang tải...';
+    document.getElementById('chart-loading').classList.remove('hidden');
+    document.getElementById('chart-container').classList.add('hidden');
+
+    try {
+        const [kpiData, trendData] = await Promise.all([
+            apiRequest("/admin/admin/stats/kpis"),
+            apiRequest("/admin/admin/stats/revenue-trend")
+        ]);
+
+        renderKpiCards(kpiData);
+        renderRevenueChart(trendData);
+    } catch (error) {
+        console.error("Lỗi khi tải dữ liệu thống kê:", error);
+        showToast("Không thể tải dữ liệu thống kê.", "error");
+        document.getElementById('chart-loading').innerHTML =
+            '<p class="text-red-500">Lỗi tải dữ liệu biểu đồ.</p>';
+    }
+}
+
+/**
+ * Điền dữ liệu vào các thẻ KPI
+ */
+function renderKpiCards(kpis) {
+    if (!kpis) return;
+
+    const revenueFormatted = new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        maximumFractionDigits: 0
+    }).format(kpis.total_revenue || 0);
+
+    document.getElementById('stats-total-revenue').textContent = revenueFormatted;
+    document.getElementById('stats-total-transactions').textContent = kpis.total_transactions || 0;
+    document.getElementById('stats-pending-payments').textContent = kpis.pending_payments || 0;
+}
+
+/**
+ * Vẽ biểu đồ doanh thu bằng Chart.js
+ */
+function renderRevenueChart(trendData) {
+    const ctx = document.getElementById('revenue-chart');
+    if (!ctx) return;
+
+    const chartContainer = document.getElementById('chart-container');
+    const loadingContainer = document.getElementById('chart-loading');
+
+    if (!trendData || !Array.isArray(trendData) || trendData.length === 0) {
+        loadingContainer.innerHTML = '<p class="text-gray-500">Không có dữ liệu xu hướng doanh thu trong 30 ngày qua.</p>';
+        loadingContainer.classList.remove('hidden');
+        chartContainer.classList.add('hidden');
+        return;
+    }
+
+    if (myRevenueChart) {
+        myRevenueChart.destroy();
+    }
+
+    const labels = trendData.map(item => {
+        const parts = item.date.split('-');
+        return `${parts[2]}/${parts[1]}`;
+    });
+    const dataPoints = trendData.map(item => item.total);
+
+    const config = {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Doanh thu (VNĐ)',
+                data: dataPoints,
+                fill: true,
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                borderColor: 'rgba(79, 70, 229, 1)',
+                tension: 0.3,
+                pointBackgroundColor: 'rgba(79, 70, 229, 1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function (value) {
+                            if (value >= 1000000) return (value / 1000000) + ' Tr';
+                            if (value >= 1000) return (value / 1000) + ' k';
+                            return value;
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            if (context.parsed.y !== null) {
+                                label += new Intl.NumberFormat('vi-VN', {
+                                    style: 'currency',
+                                    currency: 'VND'
+                                }).format(context.parsed.y);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    myRevenueChart = new Chart(ctx, config);
+
+    chartContainer.classList.remove('hidden');
+    loadingContainer.classList.add('hidden');
+}

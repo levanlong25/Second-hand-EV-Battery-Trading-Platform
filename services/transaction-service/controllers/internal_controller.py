@@ -82,3 +82,49 @@ def internal_approve_payment(payment_id):
 
     
 #===========thêm code 2
+@internal_bp.route("/stats/kpis", methods=["GET"])
+@internal_api_key_required()
+def internal_get_kpis():
+    """Admin service gọi để lấy các chỉ số KPI."""
+    try:
+        kpis, error = TransactionService.get_kpi_statistics()
+        if error:
+            return jsonify(error=error), 500
+        return jsonify(kpis), 200
+    except Exception as e:
+        logger.error(f"Lỗi internal_get_kpis: {e}", exc_info=True)
+        return jsonify(error="Lỗi máy chủ nội bộ."), 500
+
+
+@internal_bp.route("/stats/revenue-trend", methods=["GET"])
+@internal_api_key_required()
+def internal_get_revenue_trend():
+    """Admin service gọi để lấy xu hướng doanh thu."""
+    try:
+        trend, error = TransactionService.get_revenue_trend()
+        if error:
+            return jsonify(error=error), 500
+        return jsonify(trend), 200
+    except Exception as e:
+        logger.error(f"Lỗi internal_get_revenue_trend: {e}", exc_info=True)
+        return jsonify(error="Lỗi máy chủ nội bộ."), 500
+
+
+@internal_bp.route('/check-listing-transaction/<int:listing_id>', methods=['GET'])
+@internal_api_key_required()
+def check_listing_transaction(listing_id):
+    try:
+        active_statuses = ['pending', 'awaiting_payment', 'paid']
+        transaction = db.session.query(Transaction.transaction_status).filter(
+            Transaction.listing_id == listing_id,
+            Transaction.transaction_status.in_(active_statuses)
+        ).first()
+
+        if transaction:
+            return jsonify({"has_transaction": True, "status": transaction.transaction_status}), 200
+        else:
+            return jsonify({"has_transaction": False}), 200
+
+    except Exception as e:
+        logger.error(f"Lỗi khi kiểm tra giao dịch cho listing {listing_id}: {e}", exc_info=True)
+        return jsonify(error="Lỗi máy chủ nội bộ khi kiểm tra giao dịch."), 500

@@ -421,3 +421,17 @@ def update_report_status(report_id):
 
 #========thêm hàm
 #===============
+@admin_bp.route("/stats/kpis", methods=["GET"])
+@admin_required()
+def get_kpi_statistics():
+    """(Admin) Lấy các chỉ số KPI từ Transaction Service."""
+    data, status_code = call_transaction_service('GET', '/stats/kpis')
+    return jsonify(data), status_code
+
+
+@admin_bp.route("/stats/revenue-trend", methods=["GET"])
+@admin_required()
+def get_revenue_trend():
+    """(Admin) Lấy xu hướng doanh thu từ Transaction Service."""
+    data, status_code = call_transaction_service('GET', '/stats/revenue-trend')
+    return jsonify(data), status_code

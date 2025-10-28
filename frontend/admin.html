@@ -384,6 +384,37 @@
 
       <!-- thêm section -->
        <!-- === SECTION THỐNG KÊ MỚI === -->
+        <div id="stats-section" class="dashboard-section space-y-6">
+          <h2 class="text-xl font-semibold mb-4">Thống Kê & Báo Cáo</h2>
+
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div class="bg-white p-6 rounded-lg shadow-lg">
+                  <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Tổng Doanh Thu (Đã hoàn thành)</h3>
+                  <p id="stats-total-revenue" class="mt-2 text-3xl font-semibold text-green-600">Đang tải...</p>
+              </div>
+              <div class="bg-white p-6 rounded-lg shadow-lg">
+                  <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Giao dịch Hoàn Thành</h3>
+                  <p id="stats-total-transactions" class="mt-2 text-3xl font-semibold text-indigo-600">Đang tải...</p>
+              </div>
+              <div class="bg-white p-6 rounded-lg shadow-lg">
+                  <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Thanh toán Chờ Duyệt</h3>
+                  <p id="stats-pending-payments" class="mt-2 text-3xl font-semibold text-yellow-600">Đang tải...</p>
+              </div>
+          </div>
+
+          <!-- Biểu đồ Xu hướng Doanh thu -->
+          <div class="bg-white p-6 rounded-lg shadow-lg">
+              <h3 class="text-lg font-semibold mb-4">Doanh Thu 30 Ngày Gần Nhất</h3>
+              <div id="chart-container" class="relative hidden" style="height:40vh; width:100%;">
+                  <canvas id="revenue-chart"></canvas>
+              </div>
+              <div id="chart-loading" class="text-center p-8 text-gray-500">
+                  <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+                  <p class="mt-2">Đang tải dữ liệu biểu đồ...</p>
+              </div>
+          </div>
+      </div>
 
 
       <!-- === KẾT THÚC SECTION THỐNG KÊ === -->

@@ -323,3 +323,68 @@ class TransactionService:
 
 
     #===thêm code 2
+    @staticmethod
+    def get_kpi_statistics():
+        """
+        Tính toán các chỉ số KPI chính (Tổng doanh thu, Tổng giao dịch, Chờ duyệt).
+        """
+        try:
+            total_revenue = db.session.query(
+                func.coalesce(func.sum(Payment.amount), 0)
+            ).filter(
+                Payment.payment_status == 'completed'
+            ).scalar()
+
+            total_transactions = db.session.query(
+                func.count(Payment.payment_id)
+            ).filter(
+                Payment.payment_status == 'completed'
+            ).scalar()
+
+            pending_payments = db.session.query(
+                func.count(Payment.payment_id)
+            ).filter(
+                Payment.payment_status == 'pending'
+            ).scalar()
+
+            return {
+                "total_revenue": float(total_revenue),
+                "total_transactions": total_transactions,
+                "pending_payments": pending_payments
+            }, None
+
+        except Exception as e:
+            logger.error(f"Lỗi khi tính toán KPI: {e}", exc_info=True)
+            return None, "Lỗi máy chủ khi tính toán thống kê."
+
+
+    @staticmethod
+    def get_revenue_trend():
+        """
+        Lấy xu hướng doanh thu (đã 'completed') trong 30 ngày gần nhất.
+        """
+        try:
+            thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+
+            trend_data = db.session.query(
+                cast(Payment.created_at, Date).label('date'),
+                func.sum(Payment.amount).label('total')
+            ).filter(
+                Payment.payment_status == 'completed',
+                Payment.created_at >= thirty_days_ago
+            ).group_by(
+                cast(Payment.created_at, Date)
+            ).order_by(
+                cast(Payment.created_at, Date).asc()
+            ).all()
+
+            trend_list = [
+                {"date": row.date.isoformat(), "total": float(row.total)}
+                for row in trend_data
+            ]
+
+            return trend_list, None
+
+        except Exception as e:
+            logger.error(f"Lỗi khi lấy xu hướng doanh thu: {e}", exc_info=True)
+            return None, "Lỗi máy chủ khi lấy xu hướng doanh thu."
