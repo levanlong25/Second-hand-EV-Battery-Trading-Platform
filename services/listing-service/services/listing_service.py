@@ -17,7 +17,8 @@ class ListingService:
         required_fields = ['title', 'description', 'price']
         if not all(field in data for field in required_fields):
             return None, "Missing title, description, or price."
-
+        if data['price'] < 1000:
+            return None, "Giá phải lớn hơn hoặc bằng 1000"
         try:
             if listing_type == 'vehicle':
                 item_to_list = Vehicle.query.get(vehicle_id)
@@ -166,7 +167,7 @@ class ListingService:
     @staticmethod
     def get_pending_listings():
         """(Admin) Lấy các tin đăng đang chờ duyệt."""
-        return Listing.query.filter_by(status='pending').order_by(Listing.created_at.asc()).all()
+        return Listing.query.filter_by(status='pending').order_by(Listing.created_at.desc()).all()
     
     @staticmethod
     def update_listing_status(listing_id, new_status):

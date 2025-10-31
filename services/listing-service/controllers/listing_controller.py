@@ -654,7 +654,3 @@ def compare_listings():
     }), 200
 
 
-
-
-
-

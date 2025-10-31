@@ -42,7 +42,8 @@ class AuctionService:
         required_fields = ['bidder_id', 'auction_type', 'start_time', 'current_bid']
         if not all(field in data for field in required_fields):
             return None, "Thiếu các trường bắt buộc."
-
+        if data['current_bid'] < 1000:
+            return None, "Giá bắt đầu phải lớn hơn hoặc bằng 1000 "
         try:
             auction_type = data.get('auction_type')
             vehicle_id = data.get('vehicle_id')
@@ -409,87 +410,33 @@ class AuctionService:
             return -1
 
     @staticmethod
-    def auto_finalize_auctions():
+    def auto_finalize_auctions():  
+        pass 
+        return 0 
+
+    @staticmethod
+    def get_auctions_to_finalize(): 
+        current_time = datetime.now(timezone.utc)
+        return Auction.query.filter(
+            Auction.auction_status == 'started',
+            Auction.end_time <= current_time
+        ).all()
+
+    @staticmethod
+    def update_auction_status(auction_id, new_status): 
         try:
-            current_time = datetime.now(timezone.utc) 
-            auctions_to_end = Auction.query.filter(
-                Auction.auction_status == 'started',
-                Auction.end_time <= current_time
-            ).all()
-
-            if not auctions_to_end:
-                return 0  
-
-            ended_count = 0
-            transaction_created_count = 0
-            transaction_failed_ids = []
-
-            for auction in auctions_to_end: 
-                auction.auction_status = 'ended'
-                ended_count += 1
- 
-                if auction.winning_bidder_id is not None:
-                    try: 
-                        payload = {
-                            "auction_id": auction.auction_id, 
-                            "listing_id": None,  
-                            "seller_id": auction.bidder_id, 
-                            "buyer_id": auction.winning_bidder_id,  
-                            "final_price": float(auction.current_bid) 
-                        } 
-                        internal_token = os.environ.get('INTERNAL_SERVICE_TOKEN')
-                        api_key = os.environ.get('INTERNAL_API_KEY') 
-
-                        headers = {}
-                        if internal_token: 
-                            headers['Authorization'] = internal_token 
-                        elif api_key:
-                             headers['X-Api-Key'] = api_key
-
-                        if not headers:
-                             logger.warning(f"Auction {auction.auction_id}: Không tìm thấy INTERNAL_SERVICE_TOKEN hoặc INTERNAL_API_KEY trong env của worker.")
-
-                        logger.info(f"Attempting to create transaction for ended auction: {auction.auction_id}")
-                        url = f"{TRANSACTION_SERVICE_URL.rstrip('/')}/api/transactions"
-                        logger.info(f"Posting to Transaction service URL: {url} with headers: {headers} and payload: {payload}")
-                        logger.info(f"AUCTION_WORKER: Attempting to POST to URL: {url}")  
-                        logger.debug(f"AUCTION_WORKER: Headers being sent: {headers}") 
-                        response = requests.post(
-                            f"{TRANSACTION_SERVICE_URL}/api/transactions",  
-                            json=payload,
-                            headers=headers, 
-                            timeout=REQUEST_TIMEOUT
-                        ) 
-                        if response.status_code == 201:  
-                            logger.info(f"✅ Successfully auto-created Transaction for auction_id={auction.auction_id}.")
-                            transaction_created_count += 1
-                        else: 
-                            logger.warning(f"⚠️ Failed to auto-create Transaction for auction_id={auction.auction_id}. Status: {response.status_code}, Response: {response.text}")
-                            logger.warning(f" Posting to Transaction service URL: {url} with headers: {headers} and payload: {payload}")
-                            transaction_failed_ids.append(auction.auction_id) 
-
-                    except requests.exceptions.RequestException as ex_req: 
-                        logger.error(f"❌ RequestException when creating Transaction for auction_id={auction.auction_id}: {ex_req}")
-                        transaction_failed_ids.append(auction.auction_id)
-                    except Exception as ex_other: 
-                        logger.error(f"❌ Unexpected error creating Transaction for auction_id={auction.auction_id}: {ex_other}", exc_info=True)
-                        transaction_failed_ids.append(auction.auction_id)
- 
-            db.session.commit()
- 
-            log_message = f"✅ Auto-ended {ended_count} auctions."
-            if transaction_created_count > 0:
-                log_message += f" Successfully created {transaction_created_count} transactions."
-            if transaction_failed_ids:
-                log_message += f" ⚠️ Failed to create transactions for auction IDs: {transaction_failed_ids}."
-            logger.info(log_message)
-
-            return ended_count  
-
+            auction = db.session.get(Auction, auction_id)
+            if auction:
+                auction.auction_status = new_status
+                db.session.commit()
+                logger.info(f"Service: Cập nhật auction {auction_id} sang trạng thái {new_status}.")
+                return True
+            logger.warning(f"Service: Không tìm thấy auction {auction_id} để cập nhật status.")
+            return False
         except Exception as e:
             db.session.rollback()
-            logger.error(f"❌ Lỗi nghiêm trọng trong auto_finalize_auctions: {e}", exc_info=True)
-            return -1 
+            logger.error(f"Service: Lỗi khi cập nhật status cho auction {auction_id}: {e}", exc_info=True)
+            return False
     
     @staticmethod
     def review_auction(auction_id, is_approved): 
@@ -574,7 +521,7 @@ class AuctionService:
         return Auction.query.order_by(Auction.start_time.desc()).all()
     @staticmethod
     def get_pending_auctions(): 
-        return Auction.query.filter_by(auction_status='pending').order_by(Auction.start_time.asc()).all()
+        return Auction.query.filter_by(auction_status='pending').order_by(Auction.start_time.desc()).all()
     @staticmethod
     def update_auction_status(auction_id, new_status): 
         auction = Auction.query.get(auction_id)

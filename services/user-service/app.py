@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from flask_migrate import Migrate
 import redis
 import click
+from datetime import timedelta
 
 load_dotenv()
 
@@ -26,7 +27,9 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "secretkey")
     app.config['INTERNAL_SERVICE_TOKEN'] = os.getenv('INTERNAL_SERVICE_TOKEN')
- 
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
+    app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+    
     db.init_app(app) 
     migrate.init_app(app, db)
     jwt.init_app(app)

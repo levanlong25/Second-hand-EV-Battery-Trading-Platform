@@ -16,6 +16,8 @@ def internal_api_key_required():
         def decorator(*args, **kwargs):
             provided_key = request.headers.get('X-Internal-Api-Key')
             correct_key = os.environ.get('INTERNAL_API_KEY')
+            logger.warning(f"DEBUG: Key Python đọc từ .env:  '[{correct_key}]'")
+            logger.warning(f"DEBUG: Key NiFi gửi đến    : '[{provided_key}]'")
             if not correct_key:
                  logger.error("INTERNAL_API_KEY chưa được cấu hình!")
                  return jsonify(error="Lỗi cấu hình server"), 500
@@ -64,3 +66,10 @@ def internal_delete_listing(listing_id):
 
     if not success: return jsonify(error=message), 404  
     return jsonify(message=message), 200
+
+
+
+@internal_bp.route("/test", methods=["GET"])
+@internal_api_key_required()
+def internal_test():
+    return jsonify(message="Internal API Key hợp lệ!"), 200

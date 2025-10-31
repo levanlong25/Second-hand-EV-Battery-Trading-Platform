@@ -375,7 +375,7 @@ class TransactionService:
             ).group_by(
                 cast(Payment.created_at, Date)
             ).order_by(
-                cast(Payment.created_at, Date).asc()
+                cast(Payment.created_at, Date).desc()
             ).all()
 
             trend_list = [

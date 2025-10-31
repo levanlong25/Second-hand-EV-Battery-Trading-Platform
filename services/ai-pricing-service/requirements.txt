@@ -3,3 +3,6 @@ Flask-JWT-Extended
 Flask-Cors
 python-dotenv
 gunicorn
+Flask-SQLAlchemy
+Flask-Migrate
+psycopg2-binary

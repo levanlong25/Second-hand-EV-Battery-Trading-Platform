@@ -118,6 +118,25 @@ services:
       timeout: 5s
       retries: 5
 
+  db-pricing:
+    image: postgres:14-alpine
+    container_name: pricing_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${PRICING_DB}
+    ports:
+      - "5439:5432"
+    volumes:
+      - pricing_data:/var/lib/postgresql/data
+    networks:
+      - ev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${PRICING_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # ========== REDIS CACHE ==========
   redis:
     image: redis:alpine
@@ -172,15 +191,19 @@ services:
   ai-pricing-service:
     build: ./services/ai-pricing-service
     container_name: pricing_service
+    command: gunicorn --bind 0.0.0.0:5007 "app:create_app()"
     volumes:
       - ./services/ai-pricing-service:/app
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-pricing:5432/${PRICING_DB}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - FLASK_ENV=development
     ports:
       - "5007:5007"
     env_file:
       - ./.env
     depends_on:
       - listing-service
-    command: flask run --host=0.0.0.0 --port=5007
     networks:
       - ev_network
 
@@ -329,6 +352,36 @@ services:
       - ev_network
     env_file:  
       - ./.env
+  
+  nifi:
+    image: apache/nifi:1.25.0
+    container_name: nifi_service
+    ports: 
+      - "8081:8080" 
+      - "8090:8090"
+    volumes: 
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      - nifi_db_repo:/opt/nifi/nifi-current/database_repository
+      - nifi_flowfile_repo:/opt/nifi/nifi-current/flowfile_repository
+      - nifi_content_repo:/opt/nifi/nifi-current/content_repository
+      - nifi_provenance_repo:/opt/nifi/nifi-current/provenance_repository
+    environment: 
+      - NIFI_WEB_HTTPS_PORT=
+      - NIFI_WEB_HTTP_PORT=8080
+      - NIFI_SECURITY_AUTHTYPE=
+      - NIFI_SECURITY_SSL_SUPPORTED=false 
+      - NIFI_SECURITY_KEYSTORE=
+      - NIFI_SECURITY_KEYSTORE_TYPE=
+      - NIFI_SECURITY_KEYSTORE_PASSWD=
+      - NIFI_SECURITY_TRUSTSTORE=
+      - NIFI_SECURITY_TRUSTSTORE_TYPE=
+      - NIFI_SECURITY_TRUSTSTORE_PASSWD=
+      - NIFI_INITIAL_ADMIN_IDENTITY=
+      - NIFI_SENSITIVE_PROPS_KEY=a-very-secret-key-1234
+    networks:
+      - ev_network
+    depends_on:
+      - transaction-service
 
   # ========== API GATEWAY (NGINX) ==========
   api-gateway:
@@ -368,4 +421,10 @@ volumes:
   transaction_data:
   review_data:
   report_data:
+  pricing_data:
   listing_uploads:
+  nifi_conf:
+  nifi_db_repo:
+  nifi_flowfile_repo:
+  nifi_content_repo:
+  nifi_provenance_repo:

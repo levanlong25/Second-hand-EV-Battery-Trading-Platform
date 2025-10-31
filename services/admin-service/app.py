@@ -28,6 +28,7 @@ def create_app():
     app.config['TRANSACTION_SERVICE_URL'] = os.getenv('TRANSACTION_SERVICE_URL')
     app.config['REVIEW_SERVICE_URL'] = os.getenv('REVIEW_SERVICE_URL') 
     app.config['REPORT_SERVICE_URL'] = os.getenv('REPORT_SERVICE_URL') 
+    app.config['PRICING_SERVICE_URL'] = os.environ.get('PRICING_SERVICE_URL')
 
     if not app.config['USER_SERVICE_URL'] or not app.config['LISTING_SERVICE_URL'] or not app.config['AUCTION_SERVICE_URL'] or not app.config['TRANSACTION_SERVICE_URL'] or not app.config['INTERNAL_API_KEY']:
          logger.warning("!!! CẢNH BÁO: USER_SERVICE_URL hoặc INTERNAL_API_KEY chưa được cấu hình!")

@@ -7,22 +7,57 @@ from models.contract import Contract
 from models.payment import Payment
 from models.fee import Fee
 import uuid
-import os
-import requests
+import os  
+import requests   
 import logging
 from services.transaction_service import TransactionService
 from functools import wraps
 from sqlalchemy.orm import joinedload
 from decimal import Decimal 
 
-USER_SERVICE_URL = os.environ.get('USER_SERVICE_URL', 'http://user-service:5000')  
+USER_SERVICE_URL = os.environ.get('USER_SERVICE_URL', 'http://user-service:5000') 
 LISTING_SERVICE_URL = os.environ.get('LISTING_SERVICE_URL', 'http://listing-service:5001')
 REQUEST_TIMEOUT = 1
+ 
+NIFI_LISTING_UPDATE_URL = os.environ.get('NIFI_LISTING_UPDATE_URL')
+INTERNAL_API_KEY = os.environ.get('INTERNAL_API_KEY') 
 
 transaction_api = Blueprint('transaction_api', __name__, url_prefix='/api')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+ 
+def _notify_nifi_of_listing_status_change(listing_id, new_status): 
+    if not NIFI_LISTING_UPDATE_URL:
+        logger.error(f"NIFI_LISTING_UPDATE_URL chưa được cấu hình. Bỏ qua việc cập nhật listing {listing_id}.")
+        return
+
+    if not INTERNAL_API_KEY:
+        logger.error(f"INTERNAL_API_KEY chưa được cấu hình. Không thể gọi NiFi an toàn.")
+        return
+
+    try:
+        payload = {
+            "listing_id": listing_id,
+            "status": new_status
+        }
+        headers = {
+            "X-Api-Key": INTERNAL_API_KEY
+        } 
+        requests.post(
+            NIFI_LISTING_UPDATE_URL, 
+            json=payload, 
+            headers=headers, 
+            timeout=0.5 
+        )
+        
+        logger.info(f"Đã gửi yêu cầu cập nhật (status: {new_status}) cho listing {listing_id} đến NiFi thành công.")
+        
+    except requests.exceptions.Timeout: 
+        logger.info(f"Yêu cầu đến NiFi cho listing {listing_id} bị timeout (Chấp nhận được).")
+    except requests.exceptions.RequestException as e: 
+        logger.error(f"Lỗi khi gửi yêu cầu đến NiFi cho listing {listing_id}: {e}") 
+
 
 # --- DECORATOR KIỂM TRA QUYỀN ADMIN ---
 def admin_required():
@@ -44,28 +79,30 @@ def internal_or_user_required():
         def decorator(*args, **kwargs): 
             logger.debug(f"TRANSACTION_SVC [AUTH]: Đã nhận Headers: {request.headers}")
             try:
+                # 1. Thử xác thực User (JWT)
                 verify_jwt_in_request() 
+                logger.info("[AUTH] Xác thực User (JWT) THÀNH CÔNG.")
                 return fn(*args, **kwargs)
             except Exception as jwt_exc: 
+                # 2. Thử xác thực Service nội bộ (API Key)
                 internal_token_header = request.headers.get('Authorization')
-                api_key_header = request.headers.get('X-Api-Key')
-                logger.debug(f"TRANSACTION_SVC [AUTH]: Internal Token Header: {internal_token_header}")
-                logger.debug(f"TRANSACTION_SVC [AUTH]: API Key Header: {api_key_header}") 
-                correct_internal_token = os.environ.get('INTERNAL_SERVICE_TOKEN')  
-                correct_api_key = os.environ.get('INTERNAL_API_KEY')  
+                api_key_header = request.headers.get('X-Api-Key')  
+                
+                correct_internal_token = os.environ.get('INTERNAL_SERVICE_TOKEN') 
+                correct_api_key = os.environ.get('INTERNAL_API_KEY') # <-- apikeyadmin
 
                 is_valid_internal_call = False 
                 if correct_internal_token and internal_token_header == correct_internal_token:
                     is_valid_internal_call = True 
                 elif correct_api_key and api_key_header == correct_api_key:
-                    is_valid_internal_call = True
+                    is_valid_internal_call = True  
 
-                if is_valid_internal_call: 
-                    logger.warning("[AUTH] KIỂM TRA AUTH NỘI BỘ THẤT BẠI.")
-                    return fn(*args, **kwargs)
-                else: 
+                if is_valid_internal_call:  
+                    logger.info("[AUTH] Xác thực API Key nội bộ THÀNH CÔNG.")
+                    return fn(*args, **kwargs)  
+                else:  
                     logger.warning(f"Internal/User Auth Failed. JWT Error: {jwt_exc}. Headers: {request.headers}")
-                    return jsonify({"error": "Unauthorized access"}), 401
+                    return jsonify({"error": "Unauthorized access (Invalid JWT or API Key)"}), 401
         return decorator
     return wrapper
 
@@ -119,8 +156,8 @@ def serialize_payment_for_admin(payment):
     return {
         'payment_id': payment.payment_id,
         'transaction_id': payment.transaction_id,
-        'buyer_username': buyer_username,   
-        'seller_username': seller_username,  
+        'buyer_username': buyer_username, 
+        'seller_username': seller_username, 
         'payment_method': payment.payment_method,
         'amount': str(payment.amount),
         'payment_status': payment.payment_status,
@@ -135,7 +172,7 @@ def serialize_transaction(transaction):
         'listing_id': transaction.listing_id,
         'seller_id': transaction.seller_id,
         'buyer_id': transaction.buyer_id,
-        'final_price': str(transaction.final_price), # Dùng string cho an toàn
+        'final_price': str(transaction.final_price),  
         'transaction_status': transaction.transaction_status,
         'created_at': transaction.created_at.isoformat() if transaction.created_at else None
     }
@@ -169,8 +206,8 @@ def serialize_payment(payment):
         'amount': str(payment.amount),
         'payment_status': payment.payment_status,
         'created_at': payment.created_at.isoformat() if payment.created_at else None,
-        'buyer_id': buyer_id,     
-        'seller_id': seller_id   
+        'buyer_id': buyer_id, 
+        'seller_id': seller_id 
     }
 
 # --- ENDPOINTS ---
@@ -191,43 +228,56 @@ def get_transaction_by_buyer():
     return jsonify([serialize_transaction(t) for t in transactions]), 200
 
 @transaction_api.route("/transactions", methods=['POST'])
-@internal_or_user_required()
+@internal_or_user_required()  
 def create_transaction():
     data = request.get_json()
-    if not data: return jsonify({"error": "Missing JSON body"}), 400  
+     
+    logger.info(f"TRANSACTION_SVC: Hàm create_transaction được gọi. Payload nhận được: {data}")
+    
+    if not data: return jsonify({"error": "Missing JSON body"}), 400 
+    
     has_seller = 'seller_id' in data
     has_price = 'final_price' in data
-    has_listing = data.get('listing_id') is not None  
-    has_auction = data.get('auction_id') is not None  
- 
+    has_listing = data.get('listing_id') is not None 
+    has_auction = data.get('auction_id') is not None 
+    
     if not (has_seller and has_price):
+         logger.error(f"Tạo giao dịch thất bại: Thiếu seller_id hoặc final_price. Payload: {data}")
          return jsonify({"error": "Thiếu seller_id hoặc final_price"}), 400
- 
+    
     if not (has_listing or has_auction):
+         logger.error(f"Tạo giao dịch thất bại: Phải cung cấp listing_id hoặc auction_id. Payload: {data}")
          return jsonify({"error": "Phải cung cấp listing_id hoặc auction_id"}), 400
 
     if has_listing and has_auction:
+         logger.error(f"Tạo giao dịch thất bại: Không thể tạo từ cả listing và auction. Payload: {data}")
          return jsonify({"error": "Không thể tạo transaction từ cả listing và auction cùng lúc"}), 400
 
     try:
         current_user_id = int(get_jwt_identity())
+        logger.info(f"Tạo giao dịch bởi User (JWT): {current_user_id}")
     except Exception: 
-         current_user_id = data.get('buyer_id')  
-         if not current_user_id:
-              return jsonify({"error": "Không xác định được người mua (thiếu token hoặc buyer_id)"}), 401
+        # Đây là luồng NiFi sẽ đi
+        current_user_id = data.get('buyer_id') 
+        logger.info(f"Tạo giao dịch bởi Service (NiFi). Buyer_id: {current_user_id}")
+        if not current_user_id:
+             logger.error(f"Tạo giao dịch thất bại: Service nội bộ gọi nhưng thiếu 'buyer_id'. Payload: {data}")
+             return jsonify({"error": "Không xác định được người mua (thiếu token hoặc buyer_id)"}), 401
 
     try: 
         new_transaction, new_contract, message = TransactionService.create_transaction(
-            listing_id=data.get('listing_id'),  
-            auction_id=data.get('auction_id'),  
+            listing_id=data.get('listing_id'), 
+            auction_id=data.get('auction_id'), 
             seller_id=data['seller_id'],
-            buyer_id=current_user_id,  
+            buyer_id=current_user_id, 
             final_price=data['final_price']
         ) 
 
         if not new_transaction:
+             logger.error(f"Service.create_transaction thất bại: {message}. Payload: {data}")
              return jsonify({"error": message}), 400 
 
+        logger.info(f"TẠO GIAO DỊCH THÀNH CÔNG: ID {new_transaction.transaction_id}")
         return jsonify({
             "message": message,
             "transaction": serialize_transaction(new_transaction),
@@ -235,7 +285,7 @@ def create_transaction():
         }), 201
 
     except Exception as e:
-        logger.error(f"Lỗi khi gọi TransactionService.create_transaction: {e}", exc_info=True)
+        logger.error(f"Lỗi nghiêm trọng khi gọi TransactionService.create_transaction: {e}", exc_info=True)
         return jsonify({"error": f"Lỗi máy chủ nội bộ: {str(e)}"}), 500
 
 @transaction_api.route('/transactions/<int:transaction_id>/contract/sign', methods=['POST'])
@@ -255,11 +305,11 @@ def sign_contract_route(transaction_id):
 
 @transaction_api.route('/transactions/<int:transaction_id>/payment/status', methods=['GET'])
 @jwt_required()
-def get_single_payment_status(transaction_id):  
+def get_single_payment_status(transaction_id): 
     try: 
         payment = (
             db.session.query(Payment)
-            .options(joinedload(Payment.transaction))  
+            .options(joinedload(Payment.transaction)) 
             .filter(Payment.transaction_id == transaction_id)
             .first()
         )
@@ -269,7 +319,7 @@ def get_single_payment_status(transaction_id):
         current_user_id = int(get_jwt_identity())
         if payment.transaction.buyer_id != current_user_id and payment.transaction.seller_id != current_user_id:
             return jsonify({"error": "Bạn không có quyền xem trạng thái thanh toán này."}), 403
- 
+
         return jsonify({"payment": serialize_payment(payment)}), 200
 
     except Exception as e:
@@ -317,8 +367,7 @@ def create_payment_route(transaction_id):
         return jsonify({"error": "Lỗi dữ liệu giao dịch: không tìm thấy ID sản phẩm."}), 500
 
     try:
-        # 2. Tạo bản ghi Fee  
-        # Chuyển đổi an toàn sang Decimal  
+        # 2. Tạo bản ghi Fee 
         fee_amount = Decimal(str(transaction.final_price)) * Decimal(str(percentage))
         fee_amount = float(fee_amount) # Lưu lại thành float nếu model là Float
         
@@ -336,11 +385,9 @@ def create_payment_route(transaction_id):
             )
             db.session.add(new_fee) 
         else:
-            # Nếu phí đã tồn tại, dùng lại fee_amount cũ
             fee_amount = existing_fee.amount
 
         # 3. Tính tổng tiền thanh toán
-        # Đảm bảo data['amount'] là giá gốc (final_price)
         original_amount = Decimal(str(data['amount']))
         final_amount = float(original_amount + Decimal(str(fee_amount)))
         
@@ -407,8 +454,6 @@ def cancel_transaction_route(transaction_id):
         return jsonify({"error": message}), 404
         
     return jsonify({"message": message}), 200
- 
-# --- Sửa endpoint này ---
 
 @transaction_api.route("/my-transactions", methods=['GET'])
 @jwt_required()
@@ -450,7 +495,7 @@ def get_contract(transaction_id):
 
 @transaction_api.route('/transactions/<int:transaction_id>/confirm-payment', methods=['POST'])
 @jwt_required()
-def confirm_payment_route(transaction_id):  
+def confirm_payment_route(transaction_id): 
     data = request.get_json()
     if not data or 'payment_method' not in data:
         return jsonify({"error": "Missing payment_method"}), 400
@@ -497,36 +542,21 @@ def confirm_payment_route(transaction_id):
             try: 
                 payment.payment_status = 'pending'
                 transaction.transaction_status = 'paid'
-                auction_id = transaction.auction_id
                 listing_id = transaction.listing_id 
-                if listing_id:
-                    internal_token = current_app.config.get('INTERNAL_SERVICE_TOKEN')
-                    if not internal_token:
-                        logger.error("INTERNAL_SERVICE_TOKEN bị thiếu hoặc sai định dạng.")
-                        db.session.rollback()
-                        raise Exception("Lỗi cấu hình máy chủ nội bộ.")
-                    headers = {'Authorization': internal_token}
-                    url = f"{LISTING_SERVICE_URL}/api/listings/{listing_id}/status"
-                    payload = {'status': 'sold'} 
-                    response = requests.put(
-                        url, 
-                        json=payload, 
-                        headers=headers, 
-                        timeout=REQUEST_TIMEOUT
-                    )
-                    response.raise_for_status() 
-                db.session.commit()
+                
+                db.session.commit() # <-- Commit giao dịch
                 logger.info(f"Bank Payment: Xử lý thành công TXN {transaction_id}. Payment -> 'pending'.")
-            
-            except requests.exceptions.RequestException as e: 
-                db.session.rollback()  
-                logger.error(f"confirm_payment (bank): Lỗi khi gọi Listing Service (Listing {listing_id}). Đã rollback. Lỗi: {e}")
-                raise Exception(f"Lỗi khi cập nhật trạng thái sản phẩm: {e}")
+                
+                # --- (ĐÃ THAY ĐỔI) ---
+                # Gọi NiFi sau khi commit
+                if listing_id:
+                    _notify_nifi_of_listing_status_change(listing_id, "sold")
+                # --- (KẾT THÚC THAY ĐỔI) ---
             
             except Exception as e: 
-                db.session.rollback()  
-                logger.error(f"confirm_payment (bank): Lỗi CSDL hoặc cấu hình khi commit TXN {transaction_id}. Lỗi: {e}")
-                raise e  
+                db.session.rollback() 
+                logger.error(f"confirm_payment (bank): Lỗi CSDL khi commit TXN {transaction_id}. Lỗi: {e}")
+                raise e 
         else:
             return jsonify({"error": "Phương thức thanh toán không hợp lệ."}), 400 
         return jsonify({
@@ -544,21 +574,21 @@ def momo_webhook():
     order_id = data.get('orderId')
     result_code = data.get('resultCode') 
     if order_id is None or result_code is None: 
-        return jsonify({"error": "Missing data"}), 400  
+        return jsonify({"error": "Missing data"}), 400 
     try:
         transaction_id_str = order_id.split('-')[0]
         if not transaction_id_str.isdigit():
              return jsonify({"error": "Invalid orderId format"}), 400
         transaction_id = int(transaction_id_str)
     except Exception as e:
-        return jsonify({"error": "Invalid orderId"}), 400  
+        return jsonify({"error": "Invalid orderId"}), 400 
     try:
         payment = Payment.query.filter_by(transaction_id=transaction_id).first()
     except Exception as e: 
         return jsonify({"error": "Database query error"}), 500
 
     if not payment:
-        return jsonify({"error": "Payment not found"}), 404  
+        return jsonify({"error": "Payment not found"}), 404 
     if payment.payment_status in ['pending', 'completed']:
         return jsonify({"status": "ok"}), 200 
     if payment.payment_status == 'initiated': 
@@ -570,29 +600,15 @@ def momo_webhook():
                     db.session.rollback()
                     return jsonify({"error": "Dữ liệu nội bộ không nhất quán"}), 500 
                 transaction.transaction_status = 'paid'
-                auction_id = transaction.auction_id
                 listing_id = transaction.listing_id 
+                
+                db.session.commit()  
                 if listing_id:
-                    internal_token = current_app.config.get('INTERNAL_SERVICE_TOKEN')
-                    if not internal_token:
-                        db.session.rollback()
-                        return jsonify({"error": "Lỗi cấu hình máy chủ nội bộ."}), 500
-                    headers = {'Authorization': internal_token}
-                    url = f"{LISTING_SERVICE_URL}/api/listings/{listing_id}/status"
-                    payload = {'status': 'sold'} 
-                    response = requests.put(
-                        url, 
-                        json=payload, 
-                        headers=headers, 
-                        timeout=REQUEST_TIMEOUT
-                    )
-                    response.raise_for_status() 
-                db.session.commit()
-            except requests.exceptions.RequestException as e:
-                db.session.rollback()
-                return jsonify({"error": "Failed to update listing service"}), 500
+                    _notify_nifi_of_listing_status_change(listing_id, "sold")
+                
             except Exception as e: 
                 db.session.rollback()
+                logger.error(f"Lỗi CSDL khi xử lý webhook Momo: {e}")
                 return jsonify({"error": "Database commit error"}), 500
         else:
             payment.payment_status = 'failed'
@@ -605,26 +621,25 @@ def momo_webhook():
 
 @transaction_api.route('/transactions/<int:transaction_id>/payment-status', methods=['GET'])
 @jwt_required()
-def get_the_payment_status_for_polling(transaction_id):  
+def get_the_payment_status_for_polling(transaction_id): 
     try:
         current_user_id = int(get_jwt_identity()) 
         payment = db.session.query(Payment.payment_status)\
             .join(Transaction)\
             .filter(Payment.transaction_id == transaction_id, Transaction.buyer_id == current_user_id)\
-            .scalar()  
+            .scalar() 
 
         if payment is None: 
              transaction_exists = db.session.query(Transaction.transaction_id)\
-                 .filter(Transaction.transaction_id == transaction_id, Transaction.buyer_id == current_user_id)\
-                 .count() > 0
+                .filter(Transaction.transaction_id == transaction_id, Transaction.buyer_id == current_user_id)\
+                .count() > 0
              if not transaction_exists:
                  return jsonify({"error": "Không tìm thấy giao dịch hoặc không có quyền truy cập."}), 404
              else: 
-                 return jsonify({"status": "initiated"}), 200  
+                 return jsonify({"status": "initiated"}), 200 
 
         return jsonify({"status": payment}), 200
 
     except Exception as e:
         print(f"!!! Lỗi khi kiểm tra status polling: {e}")
         return jsonify({"error": "Lỗi máy chủ nội bộ"}), 500
-    
