@@ -16,6 +16,7 @@ TRANSACTION_SERVICE_URL = os.environ.get('TRANSACTION_SERVICE_URL')
 AUCTION_SERVICE_URL = os.environ.get('AUCTION_SERVICE_URL')
 REVIEW_SERVICE_URL = os.environ.get('REVIEW_SERVICE_URL')
 REPORT_SERVICE_URL = os.environ.get('REPORT_SERVICE_URL')
+PRICING_SERVICE_URL = os.environ.get('PRICING_SERVICE_URL')
 INTERNAL_API_KEY = os.environ.get('INTERNAL_API_KEY')
 REQUEST_TIMEOUT = 5  
 
@@ -216,6 +217,37 @@ def call_report_service(method, endpoint, json_data=None):
     except requests.exceptions.RequestException as e:
         logger.error(f"Lỗi kết nối đến Report Service ({url}): {e}")
         return {"error": f"Không thể kết nối đến Report Service: {e}"}, 503
+    
+def call_ai_pricing_service(method, endpoint, json_data=None):
+    """Hàm tiện ích để gọi API nội bộ của AI Pricing Service."""
+    if not PRICING_SERVICE_URL or not INTERNAL_API_KEY:
+        logger.error("AI_PRICING_SERVICE_URL hoặc INTERNAL_API_KEY chưa được cấu hình!")
+        return {"error": "Lỗi cấu hình server nội bộ"}, 500
+    
+    url = f"{PRICING_SERVICE_URL}/internal/admin{endpoint}" # Dùng prefix /internal/admin
+    headers = {'X-Internal-Api-Key': INTERNAL_API_KEY}
+    
+    try:
+        response = None
+        if method.upper() == 'GET':
+            response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        elif method.upper() == 'POST':
+             response = requests.post(url, headers=headers, json=json_data, timeout=REQUEST_TIMEOUT)
+        elif method.upper() == 'DELETE':
+             response = requests.delete(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        else:
+            return {"error": "Phương thức HTTP không hỗ trợ"}, 500
+
+        # Xử lý response
+        if 200 <= response.status_code < 300:
+             if response.content: return response.json(), response.status_code
+             else: return {"message": "Thao tác thành công"}, response.status_code
+        else:
+            try: error_json = response.json(); return {"error": error_json.get("error", response.text)}, response.status_code
+            except: return {"error": f"Lỗi từ AI Pricing Service ({response.status_code})"}, response.status_code
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Lỗi kết nối đến AI Pricing Service ({url}): {e}")
+        return {"error": f"Không thể kết nối đến AI Pricing Service: {e}"}, 503
 # --- Các Endpoint Admin (Gọi User Service) ---
 
 @admin_bp.route("/users", methods=["GET"])
@@ -419,8 +451,6 @@ def update_report_status(report_id):
     data, status_code = call_report_service('PUT', f'/reports/{report_id}/status', json_data=req_data)
     return jsonify(data), status_code
 
-#========thêm hàm
-#===============
 @admin_bp.route("/stats/kpis", methods=["GET"])
 @admin_required()
 def get_kpi_statistics():
@@ -454,6 +484,30 @@ def update_fee_config():
     data, status_code = call_transaction_service('PUT', '/fees', json_data=req_data)
     return jsonify(data), status_code
 
+@admin_bp.route("/pricing-data", methods=["GET"])
+@admin_required()
+def get_pricing_data():
+    """(Admin) Lấy tất cả dữ liệu giá mẫu từ AI Pricing Service."""
+    data, status_code = call_ai_pricing_service('GET', '/sales-data')
+    return jsonify(data), status_code
 
+@admin_bp.route("/pricing-data", methods=["POST"])
+@admin_required()
+def add_pricing_data():
+    """(Admin) Thêm dữ liệu giá mẫu mới vào AI Pricing Service."""
+    req_data = request.get_json()
+    if not req_data:
+        return jsonify(error="Thiếu JSON body"), 400
+    data, status_code = call_ai_pricing_service('POST', '/sales-data', json_data=req_data)
+    return jsonify(data), status_code
+
+@admin_bp.route("/pricing-data/<string:item_type>/<int:item_id>", methods=["DELETE"])
+@admin_required()
+def delete_pricing_data(item_type, item_id):
+    """(Admin) Xóa dữ liệu giá mẫu khỏi AI Pricing Service."""
+    if item_type not in ['vehicle', 'battery']:
+        return jsonify(error="Loại item không hợp lệ."), 400
+    data, status_code = call_ai_pricing_service('DELETE', f'/sales-data/{item_type}/{item_id}')
+    return jsonify(data), status_code
 
     

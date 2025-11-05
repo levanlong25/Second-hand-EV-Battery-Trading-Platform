@@ -118,6 +118,25 @@ services:
       timeout: 5s
       retries: 5
 
+  db-pricing:
+    image: postgres:14-alpine
+    container_name: pricing_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${PRICING_DB}
+    ports:
+      - "5439:5432"
+    volumes:
+      - pricing_data:/var/lib/postgresql/data
+    networks:
+      - ev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${PRICING_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # ========== REDIS CACHE ==========
   redis:
     image: redis:alpine
@@ -172,15 +191,19 @@ services:
   ai-pricing-service:
     build: ./services/ai-pricing-service
     container_name: pricing_service
+    command: gunicorn --bind 0.0.0.0:5007 "app:create_app()"
     volumes:
       - ./services/ai-pricing-service:/app
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-pricing:5432/${PRICING_DB}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - FLASK_ENV=development
     ports:
       - "5007:5007"
     env_file:
       - ./.env
     depends_on:
       - listing-service
-    command: flask run --host=0.0.0.0 --port=5007
     networks:
       - ev_network
 
@@ -368,4 +391,5 @@ volumes:
   transaction_data:
   review_data:
   report_data:
+  pricing_data:
   listing_uploads:

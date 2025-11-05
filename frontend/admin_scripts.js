@@ -110,13 +110,24 @@ function showDashboard() {
   loadAllReports('pending');
   loadFeeConfig();  
   loadStatistics(); 
+  loadPricingData();
   const feeForm = document.getElementById('fees-form');
   if (feeForm && !feeForm._eventsAttached) {  
      feeForm.addEventListener("submit", handleFeeFormSubmit);
      feeForm._eventsAttached = true;
   }
-}
-
+  const vehicleDataForm = document.getElementById('add-vehicle-data-form');
+    if (vehicleDataForm && !vehicleDataForm._eventsAttached) {
+         vehicleDataForm.addEventListener("submit", handleAddPricingDataSubmit);
+         vehicleDataForm._eventsAttached = true;
+    }
+    
+  const batteryDataForm = document.getElementById('add-battery-data-form');
+  if (batteryDataForm && !batteryDataForm._eventsAttached) {
+      batteryDataForm.addEventListener("submit", handleAddPricingDataSubmit);
+      batteryDataForm._eventsAttached = true;
+    }
+  }
 // --- DATA LOADING & RENDERING ---
 async function loadAllUsers() {
   try {
@@ -924,6 +935,7 @@ function renderRevenueChart(trendData) {
     loadingContainer.classList.add('hidden');
 }
 
+
 async function loadFeeConfig() {
   const form = document.getElementById('fees-form');
   if (!form) return; // Chỉ chạy nếu đang ở trang có form
@@ -991,4 +1003,136 @@ async function handleFeeFormSubmit(event) {
     submitButton.disabled = false;
     submitButton.textContent = 'Lưu Cấu hình Phí';
   }
+}
+
+async function loadPricingData() {
+    const vehicleTbody = document.getElementById("vehicle-data-table-body");
+    const batteryTbody = document.getElementById("battery-data-table-body");
+    if (!vehicleTbody || !batteryTbody) return;
+
+    vehicleTbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Đang tải...</td></tr>';
+    batteryTbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Đang tải...</td></tr>';
+    try {
+        const result = await apiRequest("/admin/admin/pricing-data"); // Gọi GET /admin/pricing-data
+        const allData = result.data || [];
+        
+        const vehicles = allData.filter(d => d.type === 'vehicle');
+        const batteries = allData.filter(d => d.type === 'battery');
+
+        renderVehicleDataTable(vehicles, vehicleTbody);
+        renderBatteryDataTable(batteries, batteryTbody);
+
+    } catch (error) {
+        console.error("Lỗi khi tải dữ liệu giá:", error);
+        const errorHtml = '<tr><td colspan="4" class="text-center p-4 text-red-500">Lỗi tải dữ liệu.</td></tr>';
+        vehicleTbody.innerHTML = errorHtml;
+        batteryTbody.innerHTML = errorHtml;
+    } finally {}
+}
+
+/**
+ * Hiển thị dữ liệu xe vào bảng
+ */
+function renderVehicleDataTable(vehicles, tbody) {
+    if (!vehicles.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Không có dữ liệu xe.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = vehicles.map(v => `
+        <tr>
+            <td class="px-4 py-3">
+                <p class="font-semibold text-sm text-gray-900">${v.brand} ${v.model}</p>
+            </td>
+            <td class="px-4 py-3">
+                <p class="text-sm text-gray-700">${v.year}</p>
+                <p class="text-xs text-gray-500">${v.mileage.toLocaleString()} km</p>
+            </td>
+            <td class="px-4 py-3">
+                <p class="text-sm font-semibold text-green-700">${v.sale_price.toLocaleString()} VNĐ</p>
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="handleDeletePricingData('vehicle', ${v.id})" class="text-red-500 hover:text-red-700 text-xs font-bold p-1">Xóa</button>
+            </td>
+        </tr>
+    `).join("");
+}
+
+/**
+ * Hiển thị dữ liệu pin vào bảng
+ */
+function renderBatteryDataTable(batteries, tbody) {
+    if (!batteries.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-500">Không có dữ liệu pin.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = batteries.map(b => `
+        <tr>
+            <td class="px-4 py-3">
+                <p class="font-semibold text-sm text-gray-900">${b.manufacturer}</p>
+            </td>
+            <td class="px-4 py-3">
+                <p class="text-sm text-gray-700">${b.capacity_kwh} kWh</p>
+                <p class="text-xs text-gray-500">${b.health_percent}%</p>
+            </td>
+            <td class="px-4 py-3">
+                <p class="text-sm font-semibold text-green-700">${b.sale_price.toLocaleString()} VNĐ</p>
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="handleDeletePricingData('battery', ${b.id})" class="text-red-500 hover:text-red-700 text-xs font-bold p-1">Xóa</button>
+            </td>
+        </tr>
+    `).join("");
+}
+
+/**
+ * Xử lý khi admin nhấn nút Xóa dữ liệu
+ */
+async function handleDeletePricingData(type, id) {
+    if (!confirm(`Bạn có chắc muốn xóa vĩnh viễn dữ liệu (ID: ${id}, Loại: ${type}) này?`)) return;
+    try {
+        await apiRequest(`/admin/admin/pricing-data/${type}/${id}`, "DELETE");
+        showToast("Xóa dữ liệu thành công.");
+        loadPricingData(); // Tải lại cả hai bảng
+    } catch (error) {
+        console.error("Lỗi khi xóa dữ liệu giá:", error);
+    } finally { }
+}
+
+/**
+ * Xử lý khi admin submit form thêm dữ liệu (cho cả xe và pin)
+ */
+async function handleAddPricingDataSubmit(event) {
+    event.preventDefault();
+    const form = event.target;
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.textContent = 'Đang thêm...';
+    
+    try {
+        const formData = new FormData(form);
+        const body = {};
+        // Chuyển FormData thành object, chuyển đổi số nếu cần
+        for (let [key, value] of formData.entries()) {
+            if (['year', 'mileage', 'sale_price', 'capacity_kwh', 'health_percent'].includes(key)) {
+                body[key] = parseFloat(value);
+                if (isNaN(body[key])) throw new Error(`Trường '${key}' phải là một con số.`);
+            } else {
+                body[key] = value;
+            }
+        }
+
+        // Gọi API POST /admin/pricing-data
+        const result = await apiRequest("/admin/admin/pricing-data", "POST", body);
+        
+        showToast(result.message || "Thêm dữ liệu thành công!");
+        form.reset(); // Xóa sạch form
+        loadPricingData(); // Tải lại bảng
+
+    } catch (error) {
+        console.error("Lỗi khi thêm dữ liệu giá:", error);
+        showToast(error.message, true); // Hiển thị lỗi (ví dụ: "phải là số")
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = form.id === 'add-vehicle-data-form' ? 'Thêm Xe' : 'Thêm Pin';
+    }
 }
