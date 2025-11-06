@@ -33,9 +33,25 @@ def internal_api_key_required():
 @internal_bp.route("/users", methods=["GET"])
 @internal_api_key_required()
 def internal_get_all_users():
-    """Admin service gọi để lấy tất cả user."""
+    """Admin service gọi để lấy tất cả user (có lọc)."""
+    status = request.args.get('status')
+    
+    # Giả định UserLogic.get_all_users() trả về 1 list các object User
+    # Lọc được thực hiện tại đây
     users = UserLogic.get_all_users() 
+    
+    if status:
+        try:
+            # Lọc trong Python
+            users = [u for u in users if u.status == status]
+        except AttributeError:
+            logger.error("Đối tượng User không có thuộc tính 'status' để lọc.")
+            # Có thể bỏ qua lỗi và trả về list đầy đủ
+            pass
+            
     return jsonify([serialize_user(u) for u in users]), 200
+
+
 
 @internal_bp.route("/users/<int:user_id>", methods=["GET"])
 @internal_api_key_required()

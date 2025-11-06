@@ -36,21 +36,32 @@ def internal_api_key_required():
 @internal_bp.route("/payments", methods=["GET"])
 @internal_api_key_required()
 def internal_get_all_payments():
-    """Admin service gọi để lấy tất cả payment (join transaction)."""
+    """Admin service gọi để lấy tất cả payment (join transaction và có lọc)."""
     try:
-        # Query giống như get_all_payments_admin cũ
-        all_payments = (
+        status = request.args.get('status') # Lấy status từ query
+
+        # Bắt đầu query
+        query = (
             db.session.query(Payment)
-            .join(Transaction, Payment.transaction_id == Transaction.transaction_id) # Join để lấy buyer/seller_id
-             # .options(joinedload(Payment.transaction)) # Eager load nếu cần nhiều thông tin transaction
-            .order_by(Payment.created_at.desc())
+            .join(Transaction, Payment.transaction_id == Transaction.transaction_id) 
+        )
+        
+        # Áp dụng filter nếu có
+        if status:
+            query = query.filter(Payment.payment_status == status)
+            
+        # Sắp xếp và thực thi
+        all_payments = (
+            query.order_by(Payment.created_at.desc())
             .all()
         )
+        
         # Serialize dùng hàm đã có (hàm này sẽ gọi user-service để lấy username)
         return jsonify([serialize_payment_for_admin(p) for p in all_payments]), 200
     except Exception as e:
         logger.error(f"Lỗi internal_get_all_payments: {e}", exc_info=True)
         return jsonify(error="Lỗi máy chủ nội bộ khi lấy payments."), 500
+
 
 @internal_bp.route("/payments/<int:payment_id>/approve", methods=["PUT"])
 @internal_api_key_required()

@@ -253,9 +253,15 @@ def call_ai_pricing_service(method, endpoint, json_data=None):
 @admin_bp.route("/users", methods=["GET"])
 @admin_required()
 def get_all_users():
-    """Lấy danh sách user từ User Service."""
-    data, status_code = call_user_service('GET', '/users')
+    """Lấy danh sách user từ User Service (có lọc)."""
+    status = request.args.get('status')
+    endpoint = "/users"
+    if status:
+        endpoint += f"?status={status}"
+        
+    data, status_code = call_user_service('GET', endpoint)
     return jsonify(data), status_code
+
 
 @admin_bp.route("/users/<int:user_id>", methods=["GET"])
 @admin_required()
@@ -364,9 +370,16 @@ def delete_listing_by_admin(listing_id):
 @admin_bp.route("/payments", methods=["GET"])
 @admin_required()
 def get_all_payments():
-    """Lấy tất cả payment từ Transaction Service."""
-    data, status_code = call_transaction_service('GET', '/payments')
+    """Lấy tất cả payment từ Transaction Service (có lọc)."""
+    status = request.args.get('status')
+    endpoint = "/payments"
+    if status:
+        endpoint += f"?status={status}"
+
+    data, status_code = call_transaction_service('GET', endpoint)
     return jsonify(data), status_code
+
+
 
 @admin_bp.route("/payments/<int:payment_id>/approve", methods=["PUT"])
 @admin_required()

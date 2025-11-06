@@ -131,7 +131,14 @@ function showDashboard() {
 // --- DATA LOADING & RENDERING ---
 async function loadAllUsers() {
   try {
-    const users = await apiRequest("/admin/admin/users");
+    // ĐỌC GIÁ TRỊ LỌC
+    const statusFilter = document.getElementById("user-status-filter").value;
+    let endpoint = "/admin/admin/users";
+    if (statusFilter) {
+      endpoint += `?status=${statusFilter}`;
+    }
+
+    const users = await apiRequest(endpoint); // Gọi API với filter
     const tbody = document.getElementById("users-table-body");
     if (users && Array.isArray(users)) {
       tbody.innerHTML = users
@@ -172,7 +179,11 @@ async function loadAllUsers() {
                                 <button onclick="deleteUser(${
                                   user.user_id
                                 })" class="text-red-600 hover:text-red-900">Delete</button>
-                                <button onclick="showUserActivity(${user.user_id}, '${user.username}')" class="text-green-600 hover:text-green-900">Hoạt Động</button>
+                                <button onclick="showUserActivity(${
+                                  user.user_id
+                                }, '${
+            user.username
+          }')" class="text-green-600 hover:text-green-900">Hoạt Động</button>
                             </td>
                         </tr>
                     `
@@ -181,6 +192,8 @@ async function loadAllUsers() {
     }
   } catch (error) {}
 }
+
+
 
 // SỬA LỖI: Hoàn thiện hàm này
 // Thay thế hàm loadAllListings cũ
@@ -630,57 +643,64 @@ function formatAdminPaymentMethod(method) {
 }
 async function loadAllTransactions() {
   try {
-    // ASSUMPTION: API returns an array of objects like:
-    // { transaction_id, payment_id, buyer_username, seller_username, amount, payment_method, payment_status }
-    const payments = await apiRequest("/admin/admin/payments");
+    // ĐỌC GIÁ TRỊ LỌC
+    const statusFilter = document.getElementById(
+      "transaction-status-filter"
+    ).value;
+    let endpoint = "/admin/admin/payments";
+    if (statusFilter) {
+      endpoint += `?status=${statusFilter}`;
+    }
+
+    const payments = await apiRequest(endpoint); // Gọi API với filter
     const tbody = document.getElementById("transactions-table-body");
 
-    if (payments && Array.isArray(payments)) {
+    if (payments && Array.isArray(payments) && payments.length > 0) {
       tbody.innerHTML = payments
         .map(
           (p) => `
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${
-                      p.transaction_id
-                    }</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
-                      p.payment_id
-                    }</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
-                      p.buyer_username || "N/A"
-                    }</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
-                      p.seller_username || "N/A"
-                    }</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${parseFloat(
-                      p.amount || 0
-                    ).toLocaleString("vi-VN")} VNĐ</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatAdminPaymentMethod(
-                      p.payment_method
-                    )}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${formatAdminPaymentStatus(
-                      p.payment_status
-                    )}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                        ${
-                          p.payment_status === "pending"
-                            ? `<button onclick="approvePayment(${p.payment_id})" class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 hover:bg-indigo-200 px-3 py-1 rounded-md">Duyệt (Complete)</button>`
-                            : `<span class="text-gray-400">${
-                                p.payment_status === "completed"
-                                  ? "Đã duyệt"
-                                  : p.payment_status === "failed"
-                                  ? "Thất bại"
-                                  : "Chờ TT"
-                              }</span>`
-                        }
-                    </td>
-                </tr>
-            `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${
+                              p.transaction_id
+                            }</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
+                              p.payment_id
+                            }</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
+                              p.buyer_username || "N/A"
+                            }</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
+                              p.seller_username || "N/A"
+                            }</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${parseFloat(
+                              p.amount || 0
+                            ).toLocaleString("vi-VN")} VNĐ</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatAdminPaymentMethod(
+                              p.payment_method
+                            )}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${formatAdminPaymentStatus(
+                              p.payment_status
+                            )}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                ${
+                                  p.payment_status === "pending"
+                                    ? `<button onclick="approvePayment(${p.payment_id})" class="text-indigo-600 hover:text-indigo-900 bg-indigo-100 hover:bg-indigo-200 px-3 py-1 rounded-md">Duyệt (Complete)</button>`
+                                    : `<span class="text-gray-400">${
+                                        p.payment_status === "completed"
+                                          ? "Đã duyệt"
+                                          : p.payment_status === "failed"
+                                          ? "Thất bại"
+                                          : "Chờ TT"
+                                      }</span>`
+                                }
+                            </td>
+                        </tr>
+                    `
         )
         .join("");
     } else {
       tbody.innerHTML =
-        '<tr><td colspan="8" class="text-center py-4 text-gray-500">Không có giao dịch nào.</td></tr>';
+        '<tr><td colspan="8" class="text-center py-4 text-gray-500">Không có giao dịch nào khớp bộ lọc.</td></tr>';
     }
   } catch (error) {
     const tbody = document.getElementById("transactions-table-body");
@@ -689,6 +709,8 @@ async function loadAllTransactions() {
         '<tr><td colspan="8" class="text-center py-4 text-red-500">Lỗi khi tải giao dịch.</td></tr>';
   }
 }
+
+
 async function approvePayment(paymentId) {
   if (
     confirm(

@@ -202,6 +202,27 @@
               + Thêm Người Dùng Mới
             </button>
           </div>
+          <div
+            class="my-4 p-4 bg-white rounded-lg shadow flex items-center space-x-4"
+          >
+            <label for="user-status-filter" class="text-sm font-medium text-gray-700"
+              >Lọc theo Trạng thái:</label
+            >
+            <select
+              id="user-status-filter"
+              class="block w-48 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+            >
+              <option value="">Tất cả Trạng thái</option>
+              <option value="active">Active</option>
+              <option value="locked">Locked</option>
+            </select>
+            <button
+              onclick="loadAllUsers()"
+              class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm"
+            >
+              Lọc
+            </button>
+          </div>
 
           <div class="bg-white shadow rounded-lg overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
@@ -355,6 +376,31 @@
         <div id="transactions-section" class="dashboard-section">
             <h2 class="text-xl font-semibold mb-4">Danh sách giao dịch</h2>
             <p class="text-sm text-gray-600 mb-4">Xem và duyệt các giao dịch đã được người dùng thanh toán.</p>
+            <div
+              class="my-4 p-4 bg-white rounded-lg shadow flex items-center space-x-4"
+            >
+              <label
+                for="transaction-status-filter"
+                class="text-sm font-medium text-gray-700"
+                >Lọc theo Trạng thái Thanh toán:</label
+              >
+              <select
+                id="transaction-status-filter"
+                class="block w-48 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              >
+                <option value="">Tất cả</option>
+                <option value="initiated">Chờ thanh toán</option>
+                <option value="pending">Chờ duyệt</option>
+                <option value="completed">Hoàn thành</option>
+                <option value="failed">Thất bại</option>
+              </select>
+              <button
+                onclick="loadAllTransactions()"
+                class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm"
+              >
+                Lọc
+              </button>
+            </div>
             <div class="bg-white shadow rounded-lg overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
