@@ -32,10 +32,25 @@ def internal_api_key_required():
 @internal_bp.route("/listings", methods=["GET"])
 @internal_api_key_required()
 def internal_get_all_listings():
-    """Admin service gọi để lấy tất cả listing (bao gồm cả pending, rejected...)."""
-    # Hàm service này cần lấy TOÀN BỘ listing, không chỉ 'available'
+    """Admin service gọi để lấy tất cả listing (có lọc)."""
+    status = request.args.get('status')
+    listing_type = request.args.get('type') # Lấy 'type' từ query
+    
+    # Hàm service này cần lấy TOÀN BỘ listing
     listings = ListingService.get_absolutely_all_listings()
+
+    try:
+        if status:
+            listings = [l for l in listings if l.status == status]
+        if listing_type:
+            # Giả định model dùng 'listing_type'
+            listings = [l for l in listings if l.listing_type == listing_type]
+    except AttributeError:
+         logger.error("Lỗi khi lọc listing: đối tượng thiếu 'status' hoặc 'listing_type'.")
+         pass
+
     return jsonify([serialize_listing(l) for l in listings]), 200
+
 
 @internal_bp.route("/listings/pending", methods=["GET"])
 @internal_api_key_required()

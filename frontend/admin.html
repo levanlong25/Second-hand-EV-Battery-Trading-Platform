@@ -259,6 +259,43 @@
           <h2 class="text-xl font-semibold mb-4 border-t pt-4">
             Tất cả tin đăng
           </h2>
+
+            <div
+              class="my-4 p-4 bg-white rounded-lg shadow flex items-center space-x-4"
+            >
+              <label for="listing-type-filter" class="text-sm font-medium text-gray-700"
+                >Lọc theo Loại:</label
+              >
+              <select
+                id="listing-type-filter"
+                class="block w-40 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              >
+                <option value="">Tất cả Loại</option>
+                <option value="vehicle">Vehicle</option>
+                <option value="battery">Battery</option>
+              </select>
+
+              <label
+                for="listing-status-filter"
+                class="text-sm font-medium text-gray-700 ml-4"
+                >Trạng thái:</label
+              >
+              <select
+                id="listing-status-filter"
+                class="block w-40 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              >
+                <option value="">Tất cả</option>
+                <option value="available">Available</option>
+                <option value="sold">Sold</option>
+              </select>
+              <button
+                onclick="loadAllListings()"
+                class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm ml-auto"
+              >
+                Lọc
+              </button>
+            </div>
+
           <div id="all-listings-container" class="space-y-4">
             <!-- All listings will be injected here -->
           </div>
@@ -274,6 +311,43 @@
           <h2 class="text-xl font-semibold mb-4 border-t pt-4">
             Tất cả đấu giá
           </h2>
+          
+          <div
+              class="my-4 p-4 bg-white rounded-lg shadow flex items-center space-x-4"
+            >
+              <label for="auction-type-filter" class="text-sm font-medium text-gray-700"
+                >Lọc theo Loại:</label
+              >
+              <select
+                id="auction-type-filter"
+                class="block w-40 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              >
+                <option value="">Tất cả Loại</option>
+                <option value="vehicle">Vehicle</option>
+                <option value="battery">Battery</option>
+              </select>
+
+              <label
+                for="auction-status-filter"
+                class="text-sm font-medium text-gray-700 ml-4"
+                >Trạng thái:</label
+              >
+              <select
+                id="auction-status-filter"
+                class="block w-40 px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+              >
+                <option value="">Tất cả</option>
+                <option value="started">Started</option>
+                <option value="ended">Ended</option>
+              </select>
+              <button
+                onclick="loadAllAuctions()"
+                class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 text-sm ml-auto"
+              >
+                Lọc
+              </button>
+            </div>
+
           <div id="all-auctions-container" class="space-y-4">
             <!-- All auctions will be injected here -->
           </div>

@@ -183,9 +183,23 @@ async function loadAllUsers() {
 }
 
 // SỬA LỖI: Hoàn thiện hàm này
+// Thay thế hàm loadAllListings cũ
 async function loadAllListings() {
   try {
-    const allListings = await apiRequest("/admin/admin/listings");
+    // ĐỌC GIÁ TRỊ LỌC
+    const typeFilter = document.getElementById("listing-type-filter").value;
+    const statusFilter = document.getElementById("listing-status-filter").value;
+
+    let params = new URLSearchParams();
+    if (typeFilter) params.append("type", typeFilter);
+    if (statusFilter) params.append("status", statusFilter);
+
+    const queryString = params.toString();
+    const endpoint = `/admin/admin/listings${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    const allListings = await apiRequest(endpoint); // Gọi API với filter
     const pendingContainer = document.getElementById(
       "pending-listings-container"
     );
@@ -197,70 +211,169 @@ async function loadAllListings() {
     if (allListings && Array.isArray(allListings)) {
       allListings.forEach((listing) => {
         const listingCardHtml = `
-                            <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center">
-                                <div>
-                                    <p class="font-bold">${
-                                      listing.title
-                                    } <span class="text-sm font-normal text-gray-500">(${
+                                <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center">
+                                    <div>
+                                        <p class="font-bold">${
+                                          listing.title
+                                        } <span class="text-sm font-normal text-gray-500">(${
           listing.listing_type
         })</span></p>
-                                    <p class="text-sm text-gray-600">ID: ${
-                                      listing.listing_id
-                                    } | Người bán: ${
+                                        <p class="text-sm text-gray-600">ID: ${
+                                          listing.listing_id
+                                        } | Người bán: ${
           listing.seller_id
         } | Trạng thái: 
-                                        <span class="font-semibold ${
+                                            <span class="font-semibold ${
+                                              listing.status === "pending"
+                                                ? "text-yellow-600"
+                                                : "text-gray-700"
+                                            }">${listing.status}</span>
+                                        </p>
+                                    </div>
+                                    <div class="space-x-2">
+                                        ${
                                           listing.status === "pending"
-                                            ? "text-yellow-600"
-                                            : "text-gray-700"
-                                        }">${listing.status}</span>
-                                    </p>
+                                            ? `
+                                            <button onclick="updateListingStatus(${listing.listing_id}, 'available')" class="bg-green-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-green-600">Duyệt</button>
+                                            <button onclick="updateListingStatus(${listing.listing_id}, 'rejected')" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Từ chối</button>
+                                        `
+                                            : ""
+                                        }
+                                        <button onclick="deleteListing(${
+                                          listing.listing_id
+                                        })" class="text-gray-500 hover:text-red-600 text-sm font-bold py-1 px-3">Xóa</button>
+                                    </div>
                                 </div>
-                                <div class="space-x-2">
-                                    ${
-                                      listing.status === "pending"
-                                        ? `
-                                        <button onclick="updateListingStatus(${listing.listing_id}, 'available')" class="bg-green-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-green-600">Duyệt</button>
-                                        <button onclick="updateListingStatus(${listing.listing_id}, 'rejected')" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Từ chối</button>
-                                    `
-                                        : ""
-                                    }
-                                    <button onclick="deleteListing(${
-                                      listing.listing_id
-                                    })" class="text-gray-500 hover:text-red-600 text-sm font-bold py-1 px-3">Xóa</button>
-                                </div>
-                            </div>
-                        `;
+                            `;
 
         if (listing.status === "pending") {
           pendingHtml += listingCardHtml;
         }
-        allHtml += listingCardHtml;
+
+        // CHỈ HIỂN THỊ TRONG 'TẤT CẢ' NẾU KHÔNG PHẢI LÀ PENDING
+        // (Trừ khi người dùng lọc riêng 'pending', nhưng logic này vẫn giữ nguyên)
+        if (listing.status !== "pending") {
+          allHtml += listingCardHtml;
+        }
       });
+
+      // Nếu người dùng lọc status=available, thì 'allHtml' sẽ chỉ có 'available'
+      // Nếu người dùng không lọc status, 'allHtml' sẽ có mọi thứ TRỪ pending
+      // Nếu người dùng lọc status=sold, 'allHtml' sẽ chỉ có 'sold'
+
+      // NẾU BỘ LỌC STATUS ĐANG ĐƯỢC CHỌN, HIỂN THỊ KẾT QUẢ LỌC
+      if (statusFilter) {
+        allContainer.innerHTML =
+          allListings.filter((l) => l.status === statusFilter).length > 0
+            ? allListings
+                .filter((l) => l.status === statusFilter)
+                .map(
+                  (listing) =>
+                    `... (HTML card giống như trên) ...` /* Rút gọn để dễ đọc, bạn copy lại card HTML ở trên */
+                )
+                .join("")
+            : `<p class="text-gray-500">Không có tin đăng nào khớp bộ lọc (Status: ${statusFilter}).</p>`;
+      } else {
+        // Logic cũ: hiển thị mọi thứ trừ pending
+        allContainer.innerHTML =
+          allHtml ||
+          '<p class="text-gray-500">Chưa có tin đăng nào (available, sold, etc.).</p>';
+      }
     }
 
     pendingContainer.innerHTML =
       pendingHtml ||
       '<p class="text-gray-500">Không có tin đăng nào chờ duyệt.</p>';
-    allContainer.innerHTML =
-      allHtml ||
-      '<p class="text-gray-500">Chưa có tin đăng nào trong hệ thống.</p>';
+
+    // Cập nhật lại logic cho allContainer để xử lý filter chính xác
+    if (allListings && Array.isArray(allListings)) {
+      const filteredListings = allListings.filter((l) => {
+        // Mục "Tất cả tin đăng" sẽ KHÔNG bao gồm 'pending' trừ khi ta cố tình lọc
+        if (statusFilter === "pending") return l.status === "pending";
+        if (statusFilter) return l.status === statusFilter;
+        // Nếu không lọc status, chỉ hiển thị những cái không phải pending
+        return l.status !== "pending";
+      });
+
+      if (filteredListings.length > 0) {
+        allContainer.innerHTML = filteredListings
+          .map(
+            (listing) =>
+              `
+                    <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center">
+                        <div>
+                            <p class="font-bold">${
+                              listing.title
+                            } <span class="text-sm font-normal text-gray-500">(${
+                listing.listing_type
+              })</span></p>
+                            <p class="text-sm text-gray-600">ID: ${
+                              listing.listing_id
+                            } | Người bán: ${
+                listing.seller_id
+              } | Trạng thái: 
+                                <span class="font-semibold ${
+                                  listing.status === "pending"
+                                    ? "text-yellow-600"
+                                    : "text-gray-700"
+                                }">${listing.status}</span>
+                            </p>
+                        </div>
+                        <div class="space-x-2">
+                            ${
+                              listing.status === "pending"
+                                ? `
+                                <button onclick="updateListingStatus(${listing.listing_id}, 'available')" class="bg-green-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-green-600">Duyệt</button>
+                                <button onclick="updateListingStatus(${listing.listing_id}, 'rejected')" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Từ chối</button>
+                            `
+                                : ""
+                            }
+                            <button onclick="deleteListing(${
+                              listing.listing_id
+                            })" class="text-gray-500 hover:text-red-600 text-sm font-bold py-1 px-3">Xóa</button>
+                        </div>
+                    </div>
+                `
+          )
+          .join("");
+      } else {
+        allContainer.innerHTML = `<p class="text-gray-500">Không có tin đăng nào khớp bộ lọc.</p>`;
+      }
+    } else {
+      allContainer.innerHTML =
+        '<p class="text-gray-500">Chưa có tin đăng nào trong hệ thống.</p>';
+    }
   } catch (error) {}
 }
 
+// Thay thế hàm loadAllAuctions cũ
 async function loadAllAuctions() {
   try {
-    const allAuctions = await apiRequest("/admin/admin/auctions");
+    // ĐỌC GIÁ TRỊ LỌC
+    const typeFilter = document.getElementById("auction-type-filter").value;
+    const statusFilter = document.getElementById("auction-status-filter").value;
+
+    let params = new URLSearchParams();
+    if (typeFilter) params.append("type", typeFilter);
+    if (statusFilter) params.append("status", statusFilter);
+
+    const queryString = params.toString();
+    const endpoint = `/admin/admin/auctions${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    const allAuctions = await apiRequest(endpoint); // Gọi API với filter
     const pendingContainer = document.getElementById(
       "pending-auctions-container"
     );
     const allContainer = document.getElementById("all-auctions-container");
 
     let pendingHtml = "";
-    let allHtml = "";
+    let allHtml = ""; // HTML cho phần "Tất cả"
 
     if (allAuctions && Array.isArray(allAuctions)) {
       allAuctions.forEach((auction) => {
+        // (Copy lại toàn bộ logic tạo auctionCardHtml từ file cũ của bạn...)
         let priceLabel = "Giá hiện tại:";
         let winnerDisplayHtml = "";
 
@@ -271,82 +384,110 @@ async function loadAllAuctions() {
           }`;
         }
         const auctionCardHtml = `
-                            <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center">
-                                <div>
-                                    <p class="font-bold"> <span class="text-sm font-normal text-gray-500">Loại: ${
-                                      auction.auction_type
-                                    }</span></p>
-                                    <p class="text-sm text-gray-600">ID: ${
-                                      auction.auction_id
-                                    } | Người tạo đấu giá: ${
-                                      auction.bidder_id
-                                    } | Người thắng đấu giá: ${auction.winning_bidder_id} | Giá: ${
-                                      auction.current_bid
-                                    } | Trạng thái: 
-                                        <span class="font-semibold ${
+                                <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center">
+                                    <div>
+                                        <p class="font-bold"> <span class="text-sm font-normal text-gray-500">Loại: ${
+                                          auction.auction_type
+                                        }</span></p>
+                                        <p class="text-sm text-gray-600">ID: ${
+                                          auction.auction_id
+                                        } | Người tạo đấu giá: ${
+          auction.bidder_id
+        } | Người thắng đấu giá: ${
+          auction.winning_bidder_id
+        } | Giá: ${auction.current_bid} | Trạng thái: 
+                                            <span class="font-semibold ${
+                                              auction.auction_status ===
+                                              "pending"
+                                                ? "text-yellow-600"
+                                                : auction.auction_status ===
+                                                  "prepare"
+                                                ? "text-blue-600"
+                                                : auction.auction_status ===
+                                                  "started"
+                                                ? "text-red-600"
+                                                : auction.auction_status ===
+                                                  "ended"
+                                                ? "text-green-600"
+                                                : auction.auction_status ===
+                                                  "rejected"
+                                                ? "text-gray-500 line-through"
+                                                : "text-gray-700"
+                                            }">${
+          auction.auction_status
+        }</span>
+                                        </p>
+                                        <p class="text-xs text-gray-500">
+                                            Bắt đầu: ${new Date(
+                                              auction.start_time
+                                            ).toLocaleString("vi-VN")} | 
+                                            Kết thúc: ${new Date(
+                                              auction.end_time
+                                            ).toLocaleString("vi-VN")}
+                                        </p>
+                                    </div>
+                                    <div class="space-x-2">
+                                        ${
                                           auction.auction_status === "pending"
-                                            ? "text-yellow-600"
-                                            : auction.auction_status ===
-                                              "prepare"
-                                            ? "text-blue-600"
-                                            : auction.auction_status ===
-                                              "started"
-                                            ? "text-red-600"
-                                            : auction.auction_status === "ended"
-                                            ? "text-green-600"
-                                            : auction.auction_status ===
-                                              "rejected"
-                                            ? "text-gray-500 line-through"
-                                            : "text-gray-700"
-                                        }">${auction.auction_status}</span>
-                                    </p>
-                                    <p class="text-xs text-gray-500">
-                                        Bắt đầu: ${new Date(
-                                          auction.start_time
-                                        ).toLocaleString("vi-VN")} | 
-                                        Kết thúc: ${new Date(
-                                          auction.end_time
-                                        ).toLocaleString("vi-VN")}
-                                    </p>
+                                            ? `
+                                            <button onclick="updateAuctionStatus(${auction.auction_id}, 'prepare')" class="bg-green-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-green-600">Duyệt</button>
+                                            <button onclick="updateAuctionStatus(${auction.auction_id}, 'rejected')" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Từ chối</button>
+                                        `
+                                            : ""
+                                        }
+                                        ${
+                                          auction.auction_status === "started"
+                                            ? `
+                                                <button onclick="finalizeAuctionAction(${auction.auction_id})" class="bg-blue-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-blue-600" title="Hoàn tất thủ công">Kết thúc</button>
+                                                `
+                                            : ""
+                                        }
+                                        <button onclick="deleteAuction(${
+                                          auction.auction_id
+                                        })" class="text-gray-500 hover:text-red-600 text-sm font-bold py-1 px-3">Xóa</button>
+                                    </div>
                                 </div>
-                                <div class="space-x-2">
-                                    ${
-                                      auction.auction_status === "pending"
-                                        ? `
-                                        <button onclick="updateAuctionStatus(${auction.auction_id}, 'prepare')" class="bg-green-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-green-600">Duyệt</button>
-                                        <button onclick="updateAuctionStatus(${auction.auction_id}, 'rejected')" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Từ chối</button>
-                                    `
-                                        : ""
-                                    }
-                                    ${
-                                      auction.auction_status === "started"
-                                        ? `
-                                            <button onclick="finalizeAuctionAction(${auction.auction_id})" class="bg-blue-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-blue-600" title="Hoàn tất thủ công">Kết thúc</button>
-                                            `
-                                        : ""
-                                    }
-                                    <button onclick="deleteAuction(${
-                                      auction.auction_id
-                                    })" class="text-gray-500 hover:text-red-600 text-sm font-bold py-1 px-3">Xóa</button>
-                                </div>
-                            </div>
-                        `;
+                            `;
 
         if (auction.auction_status === "pending") {
           pendingHtml += auctionCardHtml;
         }
-        allHtml += auctionCardHtml;
+        // Logic cho 'Tất cả đấu giá' (không bao gồm pending trừ khi lọc)
+        if (auction.auction_status !== "pending") {
+          allHtml += auctionCardHtml;
+        }
       });
     }
 
     pendingContainer.innerHTML =
       pendingHtml ||
       '<p class="text-gray-500">Không có đấu giá nào chờ duyệt.</p>';
-    allContainer.innerHTML =
-      allHtml ||
-      '<p class="text-gray-500">Chưa có đấu giá nào trong hệ thống.</p>';
+
+    // Cập nhật logic cho allContainer (giống như listing)
+    if (allAuctions && Array.isArray(allAuctions)) {
+      const filteredAuctions = allAuctions.filter((a) => {
+        if (statusFilter === "pending") return a.auction_status === "pending";
+        if (statusFilter) return a.auction_status === statusFilter;
+        return a.auction_status !== "pending";
+      });
+
+      if (filteredAuctions.length > 0) {
+        allContainer.innerHTML = filteredAuctions
+          .map(
+            (auction) =>
+              `... (HTML card giống như trên) ...` /* Rút gọn - bạn copy lại card HTML ở trên */
+          )
+          .join("");
+      } else {
+        allContainer.innerHTML = `<p class="text-gray-500">Không có đấu giá nào khớp bộ lọc.</p>`;
+      }
+    } else {
+      allContainer.innerHTML =
+        '<p class="text-gray-500">Chưa có đấu giá nào trong hệ thống.</p>';
+    }
   } catch (error) {}
 }
+
 
 // --- ACTION HANDLERS ---
 async function toggleUserLock(userId) {

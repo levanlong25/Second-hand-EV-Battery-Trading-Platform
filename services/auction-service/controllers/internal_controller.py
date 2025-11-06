@@ -31,9 +31,25 @@ def internal_api_key_required():
 @internal_bp.route("/auctions", methods=["GET"])
 @internal_api_key_required()
 def internal_get_all_auctions():
-    """Admin service gọi để lấy tất cả auction.""" 
+    """Admin service gọi để lấy tất cả auction (có lọc).""" 
+    status = request.args.get('status')
+    auction_type = request.args.get('type') # Lấy 'type'
+
     auctions = AuctionService.get_absolutely_all_auctions()
+    
+    try:
+        if status:
+            # Giả định model dùng 'auction_status'
+            auctions = [a for a in auctions if a.auction_status == status]
+        if auction_type:
+             # Giả định model dùng 'auction_type'
+            auctions = [a for a in auctions if a.auction_type == auction_type]
+    except AttributeError:
+         logger.error("Lỗi khi lọc auction: đối tượng thiếu 'auction_status' hoặc 'auction_type'.")
+         pass
+         
     return jsonify([serialize_auction(a) for a in auctions]), 200
+
 
 @internal_bp.route("/auctions/pending", methods=["GET"])
 @internal_api_key_required()

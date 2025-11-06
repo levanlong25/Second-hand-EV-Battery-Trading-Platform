@@ -315,9 +315,25 @@ def delete_user_by_admin(user_id):
 @admin_bp.route("/listings", methods=["GET"])
 @admin_required()
 def get_all_listings():
-    """Lấy tất cả listing từ Listing Service."""
-    data, status_code = call_listing_service('GET', '/listings')
+    """Lấy tất cả listing từ Listing Service (có lọc)."""
+    status = request.args.get('status')
+    listing_type = request.args.get('type')
+    
+    params = {}
+    if status:
+        params['status'] = status
+    if listing_type:
+        params['type'] = listing_type
+
+    # Cần 1 hàm helper mới để build query string
+    query_string = "&".join(f"{key}={value}" for key, value in params.items())
+    endpoint = f"/listings"
+    if query_string:
+        endpoint += f"?{query_string}"
+
+    data, status_code = call_listing_service('GET', endpoint)
     return jsonify(data), status_code
+
 
 @admin_bp.route("/listings/pending", methods=["GET"])
 @admin_required()
@@ -364,8 +380,22 @@ def approve_payment(payment_id):
 @admin_bp.route("/auctions", methods=["GET"])
 @admin_required()
 def get_all_auctions():
-    """Lấy tất cả auction từ Auction Service."""
-    data, status_code = call_auction_service('GET', '/auctions')
+    """Lấy tất cả auction từ Auction Service (có lọc)."""
+    status = request.args.get('status')
+    auction_type = request.args.get('type')
+    
+    params = {}
+    if status:
+        params['status'] = status
+    if auction_type:
+        params['type'] = auction_type
+
+    query_string = "&".join(f"{key}={value}" for key, value in params.items())
+    endpoint = f"/auctions"
+    if query_string:
+        endpoint += f"?{query_string}"
+
+    data, status_code = call_auction_service('GET', endpoint)
     return jsonify(data), status_code
 
 @admin_bp.route("/auctions/pending", methods=["GET"])
