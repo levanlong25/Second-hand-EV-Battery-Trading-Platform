@@ -1,7 +1,7 @@
-# services/auction-service/celery_app.py
 from app import create_app
 from celery import Celery
 import os
+from celery.schedules import crontab # Import crontab
 
 # Đọc cấu hình từ biến môi trường
 broker_url = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
@@ -15,14 +15,15 @@ celery_app = Celery(
     flask_app.import_name,
     broker=broker_url,
     backend=backend_url,
-    include=['tasks']   
+    include=['tasks']  # Trỏ đến file tasks.py
 )
 celery_app.conf.update(flask_app.config)
- 
+
+# Cấu hình Beat Schedule
 celery_app.conf.beat_schedule = {
     'run-auction-tasks-every-minute': {
         'task': 'tasks.run_auction_tasks',  
-        'schedule': 60.0,  
+        'schedule': crontab(minute='*'), # (SỬA) Dùng crontab(minute='*') cho chuẩn
     },
 }
 celery_app.conf.timezone = 'UTC'

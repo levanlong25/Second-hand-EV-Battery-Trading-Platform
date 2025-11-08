@@ -203,7 +203,8 @@ services:
     env_file:
       - ./.env
     depends_on:
-      - listing-service
+      db-pricing:
+        condition: service_healthy
     networks:
       - ev_network
 
@@ -352,6 +353,32 @@ services:
       - ev_network
     env_file:  
       - ./.env
+
+  nifi:
+    image: apache/nifi:1.25.0
+    container_name: nifi_service
+    ports: 
+      - "8081:8080"  
+      - "8090:8090" 
+      - "8091:8091"
+    environment: 
+      - NIFI_WEB_HTTPS_PORT=
+      - NIFI_WEB_HTTP_PORT=8080
+      - NIFI_SECURITY_AUTHTYPE=
+      - NIFI_SECURITY_SSL_SUPPORTED=false 
+      - NIFI_SECURITY_KEYSTORE=
+      - NIFI_SECURITY_KEYSTORE_TYPE=
+      - NIFI_SECURITY_KEYSTORE_PASSWD=
+      - NIFI_SECURITY_TRUSTSTORE=
+      - NIFI_SECURITY_TRUSTSTORE_TYPE=
+      - NIFI_SECURITY_TRUSTSTORE_PASSWD=
+      - NIFI_INITIAL_ADMIN_IDENTITY=
+      - NIFI_SENSITIVE_PROPS_KEY=a-very-secret-key-1234
+    networks:
+      - ev_network
+    depends_on:
+      - transaction-service
+      - listing-service  
 
   # ========== API GATEWAY (NGINX) ==========
   api-gateway:

@@ -62,3 +62,5 @@ DELETE FROM ... WHERE _ = _;
 UPDATE auctions SET start_time = start_time::date + interval '8 hour 5 minute', end_time = start_time::date + interval '10 hour 5 minute' WHERE EXTRACT(HOUR FROM start_time) = 8;
 UPDATE auctions SET auction_status = 'started' where auction_id = 1;
 
+http://localhost:8081/nifi/
+docker-compose exec ai-pricing-service python seed.py

@@ -14,11 +14,18 @@ def internal_api_key_required():
     def wrapper(fn):
         @wraps(fn)
         def decorator(*args, **kwargs):
-            provided_key = request.headers.get('X-Internal-Api-Key')
-            correct_key = os.environ.get('INTERNAL_API_KEY')
+            provided_key = request.headers.get('X-Internal-Api-Key') # Key từ NiFi
+            correct_key = os.environ.get('INTERNAL_API_KEY')       # Key từ .env
+            
+            # --- (THÊM 2 DÒNG LOG DEBUG) ---
+            logger.warning(f"DEBUG: Key Python đọc từ .env:  '[{correct_key}]'")
+            logger.warning(f"DEBUG: Key NiFi gửi đến     : '[{provided_key}]'")
+            # --- (KẾT THÚC THÊM LOG) ---
+
             if not correct_key:
-                 logger.error("INTERNAL_API_KEY chưa được cấu hình!")
-                 return jsonify(error="Lỗi cấu hình server"), 500
+                logger.error("INTERNAL_API_KEY chưa được cấu hình!")
+                return jsonify(error="Lỗi cấu hình server"), 500
+            
             if provided_key and provided_key == correct_key:
                 return fn(*args, **kwargs)
             else:
@@ -34,16 +41,14 @@ def internal_api_key_required():
 def internal_get_all_listings():
     """Admin service gọi để lấy tất cả listing (có lọc)."""
     status = request.args.get('status')
-    listing_type = request.args.get('type') # Lấy 'type' từ query
+    listing_type = request.args.get('type') 
     
-    # Hàm service này cần lấy TOÀN BỘ listing
     listings = ListingService.get_absolutely_all_listings()
 
     try:
         if status:
             listings = [l for l in listings if l.status == status]
-        if listing_type:
-            # Giả định model dùng 'listing_type'
+        if listing_type: 
             listings = [l for l in listings if l.listing_type == listing_type]
     except AttributeError:
          logger.error("Lỗi khi lọc listing: đối tượng thiếu 'status' hoặc 'listing_type'.")
