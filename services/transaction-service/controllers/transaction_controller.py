@@ -123,14 +123,18 @@ def serialize_payment_for_admin(payment):
     if not payment: return None
     buyer_username = "N/A"
     seller_username = "N/A"
+    buyer_id = "N/A"
+    seller_id = "N/A"
     if payment.transaction and payment.transaction.buyer_id:
         buyer_info = get_user_info_by_id(payment.transaction.buyer_id)
+        buyer_id = payment.transaction.buyer_id
         if buyer_info and 'username' in buyer_info:
-            buyer_username = buyer_info['username']
+            buyer_username = buyer_info['username']    
         else: 
             buyer_username = f"ID: {payment.transaction.buyer_id}"
     if payment.transaction and payment.transaction.seller_id:
         seller_info = get_user_info_by_id(payment.transaction.seller_id)
+        seller_id = payment.transaction.seller_id
         if seller_info and 'username' in seller_info:
             seller_username = seller_info['username']
         else: 
@@ -140,6 +144,8 @@ def serialize_payment_for_admin(payment):
         'transaction_id': payment.transaction_id,
         'buyer_username': buyer_username, 
         'seller_username': seller_username, 
+        'buyer_id': buyer_id,
+        'seller_id': seller_id,
         'payment_method': payment.payment_method,
         'amount': str(payment.amount),
         'payment_status': payment.payment_status,

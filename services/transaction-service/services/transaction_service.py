@@ -330,7 +330,9 @@ class TransactionService:
         """
         try:
             total_revenue = db.session.query(
-                func.coalesce(func.sum(Payment.amount), 0)
+            func.coalesce(func.sum(Payment.amount - Transaction.final_price), 0)
+            ).join(
+                Transaction, Payment.transaction_id == Transaction.transaction_id
             ).filter(
                 Payment.payment_status == 'completed'
             ).scalar()

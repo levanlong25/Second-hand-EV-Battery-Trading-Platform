@@ -23,7 +23,7 @@ class ProfileService:
     @staticmethod
     def get_profile_by_user_id(user_id):
         return Profile.query.filter_by(user_id=user_id).first()
-
+    
     @staticmethod
     def update_profile(user_id, new_data):
         profile = ProfileService.get_profile_by_user_id(user_id)
@@ -32,6 +32,8 @@ class ProfileService:
 
         if 'full_name' in new_data: profile.full_name = new_data['full_name']
         if 'phone_number' in new_data: profile.phone_number = new_data['phone_number']
+        if 'bank_name' in new_data: profile.bank_name = new_data['bank_name']
+        if 'account_number' in new_data: profile.account_number= new_data['account_number']
         if 'address' in new_data: profile.address = new_data['address']
         if 'bio' in new_data: profile.bio = new_data['bio']
         

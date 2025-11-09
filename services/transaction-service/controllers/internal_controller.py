@@ -38,25 +38,18 @@ def internal_api_key_required():
 def internal_get_all_payments():
     """Admin service gọi để lấy tất cả payment (join transaction và có lọc)."""
     try:
-        status = request.args.get('status') # Lấy status từ query
-
-        # Bắt đầu query
+        status = request.args.get('status')  
         query = (
             db.session.query(Payment)
             .join(Transaction, Payment.transaction_id == Transaction.transaction_id) 
-        )
-        
-        # Áp dụng filter nếu có
+        ) 
         if status:
             query = query.filter(Payment.payment_status == status)
-            
-        # Sắp xếp và thực thi
+             
         all_payments = (
             query.order_by(Payment.created_at.desc())
             .all()
-        )
-        
-        # Serialize dùng hàm đã có (hàm này sẽ gọi user-service để lấy username)
+        ) 
         return jsonify([serialize_payment_for_admin(p) for p in all_payments]), 200
     except Exception as e:
         logger.error(f"Lỗi internal_get_all_payments: {e}", exc_info=True)

@@ -229,27 +229,27 @@ function logout() {
   navigateTo("login");
 }
 
-/** Tải và hiển thị thông tin hồ sơ người dùng. */
 async function loadProfile() {
   try {
     const data = await apiRequest("/user/api/profile");
-    if (data) {
-      // Hiển thị thông tin
+    if (data) { 
       const detailsDiv = document.getElementById("profile-details");
       detailsDiv.innerHTML = `
         <p><strong>Họ và tên:</strong> ${data.full_name || "Chưa cập nhật"}</p>
-        <p><strong>Điện thoại:</strong> ${
-          data.phone_number || "Chưa cập nhật"
-        }</p>
+        <p><strong>Điện thoại:</strong> ${data.phone_number || "Chưa cập nhật"}</p>
+        <p><strong>Tên ngân hàng:</strong> ${data.bank_name || "Chưa cập nhật"}</p>
+        <p><strong>Số tài khoản:</strong> ${data.account_number || "Chưa cập nhật"}</p>
         <p><strong>Địa chỉ:</strong> ${data.address || "Chưa cập nhật"}</p>
+        <p><strong>Mô tả:</strong> ${data.bio || "Chưa cập nhật"}</p>
       `;
-
-      // Điền vào form cập nhật
+ 
       document.getElementById("profile-fullname").value = data.full_name || "";
       document.getElementById("profile-phone").value = data.phone_number || "";
+      document.getElementById("profile-bankname").value = data.bank_name || "";
+      document.getElementById("profile-accountnumber").value = data.account_number || "";
       document.getElementById("profile-address").value = data.address || "";
-
-      // Đảm bảo form được ẩn khi tải trang
+      document.getElementById("profile-bio").value = data.bio || "";
+ 
       toggleProfileForm(false);
     }
   } catch (error) {
@@ -258,23 +258,25 @@ async function loadProfile() {
 }
 
 function toggleProfileForm(forceShow) {
-  const form = document.getElementById("profile-update-form");
-  const buttonContainer = document.getElementById(
-    "update-profile-button-container"
-  );
+    const modal = document.getElementById("profile-update-modal");
+    const backdrop = document.getElementById("profile-modal-backdrop");
+    
+    if (!modal || !backdrop) {
+        console.error("Không tìm thấy modal profile hoặc backdrop.");
+        return;
+    } 
+    const shouldShow = (forceShow === true) || (forceShow !== false && modal.classList.contains('hidden'));
 
-  if (!form || !buttonContainer) return;
+    if (shouldShow) { 
+        modal.classList.remove('hidden');
+        modal.classList.add('flex'); 
+        backdrop.classList.remove('hidden'); 
 
-  if (forceShow === true) {
-    form.classList.remove("hidden");
-    buttonContainer.classList.add("hidden");
-  } else if (forceShow === false) {
-    form.classList.add("hidden");
-    buttonContainer.classList.remove("hidden");
-  } else {
-    form.classList.toggle("hidden");
-    buttonContainer.classList.toggle("hidden");
-  }
+    } else { 
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        backdrop.classList.add('hidden'); 
+    }
 }
 
 // --- AUTH & PROFILE EVENT LISTENERS ---
@@ -363,7 +365,10 @@ document
     const body = {
       full_name: document.getElementById("profile-fullname").value,
       phone_number: document.getElementById("profile-phone").value,
+      bank_name: document.getElementById("profile-bankname").value,
+      account_number: document.getElementById("profile-accountnumber").value,
       address: document.getElementById("profile-address").value,
+      bio: document.getElementById("profile-bio").value,
     };
     try {
       await apiRequest("/user/api/profile", "PUT", body);
@@ -410,8 +415,7 @@ async function loadMyBatteries() {
   }
 }
 
-// Giả sử bạn có hàm renderMyVehicles như thế này
-/*async*/ function renderMyVehicles(showAll = false) {
+function renderMyVehicles(showAll = false) {
   const container = document.getElementById("my-vehicles-container");
   if (!container) return;
 
@@ -424,7 +428,7 @@ async function loadMyBatteries() {
   }
 
   const vehiclePromises = vehiclesToDisplay.map(
-    /*async*/ (v) => {
+    (v) => {
       let statusBadge = "";
       let detailInfo = "";
       let primaryActions = "";
@@ -436,20 +440,11 @@ async function loadMyBatteries() {
               v.vehicle_id
             })" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Xóa</button>
         `;
-      if (v.is_auctioned) {
-        //statusBadge = `<span class="ml-2 bg-purple-200 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Đang đấu giá</span>`;
+      if (v.is_auctioned) { 
         statusBadge = renderStatusAuction(v.auction_status_resource);
         detailInfo = `<button onclick="viewVehicleAuctionDetail('${v.vehicle_id}')" class="text-gray-400 text-[0.6rem] rounded hover:text-indigo-600">Xem chi tiết đấu giá</button>`;
         primaryActions = `<button onclick="unauctionVehicle('${v.vehicle_id}')" class="bg-purple-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-purple-600">Gỡ Đấu Giá</button>`;
         secondaryActions = "";
-        // }else if (v.auction_status === "ended") {
-        //     statusBadge = `<span class="ml-2 px-2 inline-flex text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Đấu giá kết thúc</span>`;
-        //     detailInfo = `<button onclick="viewVehicleAuctionDetail('${v.vehicle_id}')" class="text-gray-400 text-[0.6rem] rounded hover:text-indigo-600">Xem chi tiết đấu giá</button>`;
-        //     primaryActions = '';
-        //     secondaryActions = '';
-        // } else if (v.auction_status === "rejected") {
-        //     statusBadge = `<span class="ml-2 px-2 inline-flex text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Bị từ chối</span>`;
-        //     primaryActions = `<button onclick="openAuctionModal('battery', ${v.vehicle_id})" class="bg-purple-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-purple-600">Gửi lại đấu giá</button>`;
       } else if (v.is_listed) {
         statusBadge = renderStatusBadge(v.listing_status);
         detailInfo = `<button onclick="viewVehicleDetail('${v.vehicle_id}')" class="text-gray-400 text-[0.6rem] rounded hover:text-indigo-600">Xem Chi Tiết</button>`;
@@ -483,9 +478,7 @@ async function loadMyBatteries() {
         `;
     }
   );
-
-  // const htmlSnippets = await Promise.all(vehiclePromises);
-  // let contentHTML = htmlSnippets.join("")
+ 
   let contentHTML = vehiclePromises.join("");
   if (allMyVehicles.length > 2) {
     contentHTML += `
@@ -503,11 +496,7 @@ async function loadMyBatteries() {
   container.innerHTML = contentHTML;
 }
 
-/**
- * Hiển thị danh sách pin của người dùng ra giao diện.
- * @param {boolean} showAll - True để hiển thị tất cả, false để chỉ hiển thị 2 pin đầu.
- */
-/*async*/ function renderMyBatteries(showAll = false) {
+function renderMyBatteries(showAll = false) {
   const container = document.getElementById("my-batteries-container");
   if (!container) return;
 
@@ -521,7 +510,7 @@ async function loadMyBatteries() {
     : allMyBatteries.slice(0, 2);
 
   const batteryPromises = batteriesToDisplay.map(
-    /*async*/ (b) => {
+    (b) => {
       let statusBadge = "";
       let detailInfo = "";
       let primaryActions = "";
@@ -534,8 +523,6 @@ async function loadMyBatteries() {
             })" class="bg-red-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-red-600">Xóa</button>
         `;
       if (b.is_auctioned === true) {
-        //statusBadge = await renderStatusBattery(b.battery_id);
-        //statusBadge = `<span class="ml-2 bg-purple-200 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Đang đấu giá</span>`;
         statusBadge = renderStatusAuction(b.auction_status_resource);
         detailInfo = `<button onclick="viewBatteryAuctionDetail('${b.battery_id}')" class="text-gray-400 text-[0.6rem] rounded hover:text-indigo-600">Xem chi tiết đấu giá</button>`;
         primaryActions = `<button onclick="unauctionBattery('${b.battery_id}')" class="bg-purple-500 text-white text-sm font-bold py-1 px-3 rounded hover:bg-purple-600">Gỡ Đấu Giá</button>`;
@@ -578,9 +565,7 @@ async function loadMyBatteries() {
             </div>
         `;
     }
-  );
-  // const htmlSnippets = await Promise.all(batteryPromises);
-  // let contentHTML = htmlSnippets.join("");
+  ); 
   let contentHTML = batteryPromises.join("");
   if (allMyBatteries.length > 2) {
     contentHTML += `<div class="text-center mt-4">
@@ -595,8 +580,7 @@ async function loadMyBatteries() {
   }
   container.innerHTML = contentHTML;
 }
-
-/** Xóa xe khỏi kho. */
+ 
 async function deleteVehicle(id) {
   if (confirm("Bạn có chắc chắn muốn xóa xe này khỏi kho?")) {
     try {
@@ -606,8 +590,7 @@ async function deleteVehicle(id) {
     } catch (error) {}
   }
 }
-
-/** Xóa pin khỏi kho. */
+ 
 async function deleteBattery(id) {
   if (confirm("Bạn có chắc chắn muốn xóa pin này khỏi kho?")) {
     try {
@@ -1317,7 +1300,25 @@ function renderListingDetail(item) {
           item.description || "Không có mô tả."
         }</p>
         ${productDetailsHtml}
-    `;
+
+        <section class="mt-6 border-t pt-4">
+            <h4 class="text-lg font-semibold text-gray-800 mb-2">Thông tin người bán</h4>
+            <div class="flex items-center space-x-3">
+                <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-gray-200 text-gray-600 font-semibold" title="Người bán ID: ${item.seller_id}">
+                    ${item.seller_id}
+                </span>
+                <div>
+                    <p class="font-medium text-gray-700">Người bán (ID: ${item.seller_id})</p>
+                    <button 
+                        type="button" 
+                        onclick="openUserInfoModal(${item.seller_id})" 
+                        class="text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
+                        Xem chi tiết hồ sơ & đánh giá
+                    </button>
+                </div>
+            </div>
+        </section>
+            `;
 }
 /** Hiển thị chi tiết đấu giá một pin từ kho cá nhân. */
 async function viewBatteryAuctionDetail(battery_id) {
@@ -2372,7 +2373,7 @@ function renderPaymentList(containerId, payments, emptyMessage) {
       const formattedPrice =
         parseFloat(p.amount).toLocaleString("vi-VN") + " VNĐ";
       const formattedDate = new Date(p.created_at).toLocaleDateString("vi-VN");
-
+      
       const imageUrl = p.listing_image
         ? apiBaseUrl + p.listing_image
         : "https://placehold.co/400x400/e2e8f0/e2e8f0?text=Giao+dịch";
@@ -3560,9 +3561,63 @@ function _renderCompareBattery(items) {
         </table>
     `;
 }
+async function openUserInfoModal(userId) {
+    if (!userId) {
+        showToast("Không thể tải thông tin người dùng (thiếu ID).", "error");
+        return;
+    }
 
+    const modal = document.getElementById('info-model');
+    const loadingDiv = document.getElementById('user-info-loading');
+    const contentWrapper = document.getElementById('user-info-wrapper');
+    const reviewsContainer = document.getElementById('user-info-reviews-container');
 
+    // Mở modal và hiển thị loading
+    openModal('info-model');
+    loadingDiv.classList.remove('hidden');
+    contentWrapper.classList.add('hidden');
 
+    try {
+        // Gọi API song song: 1. Lấy Profile, 2. Lấy Reviews
+        const [profileData, reviewsData] = await Promise.all([
+            // Gọi API /profile/<id> (bạn cần tạo API public này bên user-service)
+            apiRequest(`/user/api/profile/${userId}`, 'GET', null, 'user'),
+            // Gọi API /reviews/user/<id> (bạn đã có API này bên review-service)
+            apiRequest(`/review/api/reviews/user/${userId}`, 'GET', null, 'review')
+        ]);
 
+        // 1. Điền thông tin Profile
+        if (profileData) {
+            document.getElementById('user-info-fullname').textContent = profileData.full_name || 'Chưa cập nhật';
+            document.getElementById('user-info-phone').textContent = profileData.phone_number || 'Chưa cập nhật';
+            document.getElementById('user-info-address').textContent = profileData.address || 'Chưa cập nhật';
+            document.getElementById('user-info-bio').textContent = profileData.bio || 'Chưa có giới thiệu.';
+        } else { 
+             document.getElementById('user-info-fullname').textContent = 'Không tìm thấy hồ sơ';
+        }
+        
+        if (reviewsData && Array.isArray(reviewsData) && reviewsData.length > 0) {
+            reviewsContainer.innerHTML = reviewsData.map(r => `
+                <div class="border p-3 rounded-lg bg-white shadow-sm">
+                    <div class="flex justify-between items-center">
+                        <p class="font-semibold text-lg text-yellow-500">${'⭐'.repeat(r.rating)}</p>
+                        <p class="text-xs text-gray-400">${new Date(r.created_at).toLocaleDateString('vi-VN')}</p>
+                    </div>
+                    <p class="italic text-gray-700 my-2">"${r.comment || 'Không có bình luận.'}"</p>
+                    <p class="text-xs text-gray-500">Từ User ID: <b>${r.reviewer_id}</b> (Giao dịch #${r.transaction_id})</p>
+                </div>
+            `).join("");
+        } else {
+            reviewsContainer.innerHTML = "<p class='text-gray-500 text-center'>Người dùng này chưa có đánh giá nào.</p>";
+        }
 
+        // Ẩn loading, hiện nội dung
+        loadingDiv.classList.add('hidden');
+        contentWrapper.classList.remove('hidden');
 
+    } catch (error) {
+        console.error(`Lỗi khi tải thông tin user ${userId}:`, error);
+        loadingDiv.innerHTML = `<p class="text-red-500 p-8">Lỗi: ${error.message}</p>`;
+        // showToast đã hiển thị lỗi
+    }
+}

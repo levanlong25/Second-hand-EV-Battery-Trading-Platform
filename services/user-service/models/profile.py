@@ -7,7 +7,8 @@ class Profile(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.user_id"), nullable=False, unique=True)
     full_name = db.Column(db.String(100))
     phone_number = db.Column(db.String(20))
-    avatar_url = db.Column(db.String(255))
+    bank_name = db.Column(db.String(100))
+    account_number = db.Column(db.String(30))
     address = db.Column(db.Text)
     bio = db.Column(db.Text)
 

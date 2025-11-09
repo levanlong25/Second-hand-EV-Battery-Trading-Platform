@@ -316,6 +316,13 @@ def delete_user_by_admin(user_id):
     data, status_code = call_user_service('DELETE', f'/users/{user_id}') 
     return jsonify(data), status_code
 
+@admin_bp.route("/users/<int:user_id>/bank", methods=["GET"])
+@admin_required()
+def get_user_bank_info(user_id):
+    """(Admin) Lấy thông tin ngân hàng của user từ User Service.""" 
+    data, status_code = call_user_service('GET', f'/users/{user_id}/bank')
+    return jsonify(data), status_code
+
 # === CÁC ROUTE ADMIN CHO LISTING ===
 
 @admin_bp.route("/listings", methods=["GET"])
@@ -552,5 +559,3 @@ def delete_pricing_data(item_type, item_id):
         return jsonify(error="Loại item không hợp lệ."), 400
     data, status_code = call_ai_pricing_service('DELETE', f'/sales-data/{item_type}/{item_id}')
     return jsonify(data), status_code
-
-    

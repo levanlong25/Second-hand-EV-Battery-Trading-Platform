@@ -28,7 +28,12 @@ def serialize_info(user):
         "user_id": user.user_id,
         "username": user.username
     }
-
+def serialize_bank(profile):
+    if not profile: return None
+    return {
+        "bank_name": profile.bank_name,
+        "account_number": profile.account_number,
+    }
 def serialize_profile(profile):
     """Chuyển đổi đối tượng Profile thành dictionary."""
     if not profile: return None
@@ -36,9 +41,10 @@ def serialize_profile(profile):
         "user_id": profile.user_id,
         "full_name": profile.full_name,
         "phone_number": profile.phone_number,
+        "bank_name": profile.bank_name,
+        "account_number": profile.account_number,
         "address": profile.address,
-        "bio": profile.bio,
-        "avatar_url": profile.avatar_url
+        "bio": profile.bio
     }
 
 # --- Custom Decorator for Admin Role ---
@@ -178,71 +184,13 @@ def get_info_user(user_id):
     user = UserLogic.get_user_by_id(user_id=user_id)
     return jsonify([serialize_info(user)]), 200
 
-# --- Admin Management Endpoints (Admin Protected) ---
-
-# @api_bp.route("/admin/users", methods=["GET"])
-# @admin_required()
-# def get_all_users():
-#     users = UserLogic.get_all_users()
-#     return jsonify([serialize_user(u) for u in users]), 200
-
-# @api_bp.route("/admin/users/<int:user_id>", methods=["GET"])
-# @admin_required()
-# def get_user_details_by_admin(user_id):
-#     user = UserLogic.get_user_by_id(user_id)
-#     if not user: return jsonify(error="User not found"), 404
-#     profile = ProfileLogic.get_profile_by_user_id(user_id)
-#     return jsonify({
-#         "user": serialize_user(user),
-#         "profile": serialize_profile(profile)
-#     }), 200
-
-# @api_bp.route("/admin/users", methods=["POST"])
-# @admin_required()
-# def create_user_by_admin():
-#     data = request.get_json()
-#     if not data or not all(k in data for k in ["email", "username", "password"]):
-#         return jsonify({"error": "Missing required fields"}), 400
+@api_bp.route("/profile/<int:user_id>", methods=["GET"]) 
+def get_user_profile(user_id):
+    """
+    Lấy thông tin profile công khai của một user bất kỳ.
+    """
+    profile = ProfileLogic.get_profile_by_user_id(user_id)
     
-#     user, error = UserLogic.create_user(
-#         email=data["email"],
-#         username=data["username"],
-#         password=data["password"],
-#         role=data.get("role", "member"),
-#         status=data.get("status", "active")
-#     )
-#     if error:
-#         return jsonify({"error": error}), 409
-#     return jsonify({"message": "User created by admin", "user": serialize_user(user)}), 201
-
-# @api_bp.route("/admin/users/<int:user_id>/toggle-lock", methods=["POST"])
-# @admin_required()
-# def toggle_user_lock(user_id):
-#     current_admin_id = get_jwt_identity()
-#     if user_id == current_admin_id:
-#         return jsonify(error="Admin cannot lock their own account"), 400
-
-#     user, error = UserLogic.toggle_user_lock(user_id)
-#     if error:
-#         return jsonify({"error": error}), 404
-#     return jsonify({"message": f"User status changed to {user.status}", "user": serialize_user(user)}), 200
-
-# @api_bp.route("/admin/users/<int:user_id>", methods=["PUT"])
-# @admin_required()
-# def update_user_by_admin(user_id):
-#     user, error = UserLogic.update_user_by_admin(user_id, request.json)
-#     if error:
-#         return jsonify({"error": error}), 404
-#     return jsonify({"message": "User updated by admin", "user": serialize_user(user)}), 200
-
-# @api_bp.route("/admin/users/<int:user_id>", methods=["DELETE"])
-# @admin_required()
-# def delete_user_by_admin(user_id):
-#     current_admin_id = get_jwt_identity()
-#     if user_id == current_admin_id:
-#         return jsonify(error="Admin cannot delete their own account"), 400
-
-#     success, message = UserLogic.delete_user(user_id)
-#     if not success:
-#         return jsonify({"error": message}), 404
-#     return jsonify({"message": message}), 200
+    if not profile: 
+        return jsonify({"error": "Không tìm thấy hồ sơ người dùng."}), 404 
+    return jsonify(serialize_profile(profile)), 200

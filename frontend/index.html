@@ -99,7 +99,7 @@
                 <form id="reset-password-form" class="mt-6 hidden">
                     <div class="mb-4">
                         <label for="otp-code" class="block text-sm font-medium text-gray-700">Mã OTP</label>
-                        <input type="text" id="otp-code" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                        <input type="text" id="otp-code" autocomplete="one-time-code" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                     </div>
                     <div class="mb-6">
                         <label for="new-password" class="block text-sm font-medium text-gray-700">Mật khẩu mới</label>
@@ -230,32 +230,49 @@
                             </div>
                         
                         <div id="update-profile-button-container" class="border-t pt-4">
-                            <button onclick="toggleProfileForm()" class="w-full bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
+                            <button onclick="toggleProfileForm(true)" class="w-full bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
                                 Cập nhật thông tin
                             </button>
                         </div>
-
-                        <form id="profile-update-form" class="hidden"> 
-                            <h3 class="text-xl font-semibold mb-4 border-t pt-4">Cập nhật thông tin</h3>
-                            <div class="space-y-4">
-                                <div>
-                                    <label for="profile-fullname" class="block text-sm font-medium text-gray-700">Họ và Tên</label>
-                                    <input type="text" id="profile-fullname" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
-                                </div>
-                                <div>
-                                    <label for="profile-phone" class="block text-sm font-medium text-gray-700">Số điện thoại</label>
-                                    <input type="text" id="profile-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
-                                </div>
-                                <div>
-                                    <label for="profile-address" class="block text-sm font-medium text-gray-700">Địa chỉ</label>
-                                    <input type="text" id="profile-address" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
-                                </div>
-                            </div>
-                            <button type="submit" class="w-full mt-6 bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">Lưu Thay Đổi</button>
-                            <button type="button" onclick="toggleProfileForm(false)" class="w-full mt-2 bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">Hủy</button>
-                        </form>
                     </div>
-
+                    <div id="profile-modal-backdrop" class="modal-backdrop fixed inset-0 bg-gray-600 bg-opacity-75 z-40 hidden"></div> 
+                    <div id="profile-update-modal" class="modal fixed inset-0 items-center justify-center p-4 z-50 hidden"> 
+                        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mt-[65px]">
+                            <form id="profile-update-form"> 
+                                <h3 class="text-xl font-bold mb-6 text-center">Cập nhật thông tin</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="profile-fullname" class="block text-sm font-medium text-gray-700">Họ và Tên</label>
+                                        <input type="text" id="profile-fullname" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                    </div>
+                                    <div>
+                                        <label for="profile-phone" class="block text-sm font-medium text-gray-700">Số điện thoại</label>
+                                        <input type="text" id="profile-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                    </div>
+                                    <div>
+                                        <label for="profile-bankname" class="block text-sm font-medium text-gray-700">Tên ngân hàng(ví)</label>
+                                        <input type="text" id="profile-bankname" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                    </div>
+                                    <div>
+                                        <label for="profile-accountnumber" class="block text-sm font-medium text-gray-700">Số tài khoản</label>
+                                        <input type="text" id="profile-accountnumber" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                    </div>
+                                    <div>
+                                        <label for="profile-address" class="block text-sm font-medium text-gray-700">Địa chỉ</label>
+                                        <input type="text" id="profile-address" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                    </div>
+                                    <div>
+                                        <label for="profile-bio" class="block text-sm font-medium text-gray-700">Mô tả</label>
+                                        <input type="text" id="profile-bio" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                    </div>
+                                </div>
+                                <div class="flex justify-end space-x-3 mt-6">
+                                    <button type="button" onclick="toggleProfileForm(false)" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">Hủy</button>
+                                    <button type="submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">Lưu Thay Đổi</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                     <div class="mt-4">
                         <button onclick="navigateTo('watchlist')" class="w-full bg-teal-500 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-teal-600 transition duration-300">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -544,7 +561,7 @@
             </form>
         </div>
     </div>
-     <div id="contract-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
+    <div id="contract-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h3 class="text-xl font-bold mb-4">Hợp Đồng Giao Dịch</h3>
             <input type="hidden" id="contract-transaction-id">
@@ -784,48 +801,95 @@
         </div>
     </div>
     <div id="compare-tray" class="fixed bottom-0 left-0 right-0 bg-white shadow-lg border-t border-gray-200 p-4 transform translate-y-full transition-transform z-40 hidden">
-    <div class="max-w-7xl mx-auto flex justify-between items-center">
-        <div>
-            <h4 class="font-semibold text-gray-800">Đang so sánh:</h4>
-            <div id="compare-items-list" class="flex space-x-2 mt-1">
-                <!-- Các item so sánh sẽ được thêm vào đây bằng JS -->
-                <!-- Ví dụ item:
-                <span class="bg-gray-200 text-gray-700 text-sm font-medium px-3 py-1 rounded-full flex items-center">
-                    Item 1
-                    <button class="ml-2 text-gray-500 hover:text-red-500">&times;</button>
-                </span>
-                -->
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div>
+                <h4 class="font-semibold text-gray-800">Đang so sánh:</h4>
+                <div id="compare-items-list" class="flex space-x-2 mt-1">
+                </div>
+            </div>
+            <div class="space-x-3">
+                <button onclick="clearCompare()" class="text-sm text-gray-600 hover:text-red-600 font-medium py-2 px-4 rounded-lg hover:bg-gray-100">Xóa tất cả</button>
+                <button onclick="startComparison()" id="compare-start-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-gray-400" disabled>
+                    So Sánh (0/2)
+                </button>
             </div>
         </div>
-        <div class="space-x-3">
-            <button onclick="clearCompare()" class="text-sm text-gray-600 hover:text-red-600 font-medium py-2 px-4 rounded-lg hover:bg-gray-100">Xóa tất cả</button>
-            <button onclick="startComparison()" id="compare-start-btn" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-gray-400" disabled>
-                So Sánh (0/2)
-            </button>
-        </div>
     </div>
-</div>
     <div id="compare-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50 hidden">
-    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto relative">
-        <!-- Nút đóng modal -->
-        <button type="button" onclick="closeModal('compare-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-        </button>
-        
-        <h3 class="text-2xl font-bold mb-6 text-center">So Sánh Sản Phẩm</h3>
-        
-        <!-- Vùng chứa bảng so sánh -->
-        <div id="compare-modal-content" class="overflow-x-auto">
-            <!-- Bảng so sánh sẽ được render vào đây bằng JS -->
-            <div classs="text-center p-8">
-                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
-                 <p class="mt-2 text-gray-500">Đang tải dữ liệu so sánh...</p>
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto relative">
+            <!-- Nút đóng modal -->
+            <button type="button" onclick="closeModal('compare-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            
+            <h3 class="text-2xl font-bold mb-6 text-center">So Sánh Sản Phẩm</h3>
+            
+            <!-- Vùng chứa bảng so sánh -->
+            <div id="compare-modal-content" class="overflow-x-auto">
+                <!-- Bảng so sánh sẽ được render vào đây bằng JS -->
+                <div classs="text-center p-8">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+                    <p class="mt-2 text-gray-500">Đang tải dữ liệu so sánh...</p>
+                </div>
             </div>
         </div>
     </div>
-</div>
+
+    <div id="info-model" class="modal fixed inset-0 bg-gray-600 bg-opacity-75 items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto relative">
+            <button type="button" onclick="closeModal('info-model')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            
+            <h3 class="text-2xl font-bold mb-6 text-center">Thông tin Người dùng</h3>
+            
+            <div id="user-info-content">
+                
+                <div id="user-info-loading" class="text-center p-8">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+                    <p class="mt-2 text-gray-500">Đang tải thông tin...</p>
+                </div>
+
+                <div id="user-info-wrapper" class="hidden space-y-6">
+                    
+                    <section>
+                        <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Thông tin cá nhân</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                            <div>
+                                <dt class="font-medium text-gray-500">Họ và Tên:</dt>
+                                <dd id="user-info-fullname" class="text-gray-900 font-semibold">---</dd>
+                            </div>
+                            <div>
+                                <dt class="font-medium text-gray-500">Số điện thoại:</dt>
+                                <dd id="user-info-phone" class="text-gray-900 font-semibold">---</dd>
+                            </div>
+                            <div class="col-span-1 md:col-span-2">
+                                <dt class="font-medium text-gray-500">Địa chỉ:</dt>
+                                <dd id="user-info-address" class="text-gray-900">---</dd>
+                            </div>
+                            <div class="col-span-1 md:col-span-2">
+                                <dt class="font-medium text-gray-500">Giới thiệu (Bio):</dt>
+                                <dd id="user-info-bio" class="text-gray-900 italic bg-gray-50 p-2 rounded-md mt-1">---</dd>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <section>
+                        <h4 class="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Đánh giá đã nhận</h4>
+                        <div id="user-info-reviews-container" class="space-y-4 max-h-64 overflow-y-auto bg-gray-50 p-4 rounded-lg">
+                            <p class="text-gray-500 text-center">Đang tải đánh giá...</p>
+                        </div>
+                    </section>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Spinner -->
     <div id="loading-spinner" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
         <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>

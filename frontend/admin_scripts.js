@@ -593,13 +593,20 @@ async function loadAllTransactions() {
                             }</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${parseFloat(
                               p.amount || 0
-                            ).toLocaleString("vi-VN")} VNĐ</td>
+                            ).toLocaleString("vi-VN")} VNĐ</td> 
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatAdminPaymentMethod(
                               p.payment_method
                             )}</td>
                             <td class="px-6 py-4 whitespace-nowrap">${formatAdminPaymentStatus(
                               p.payment_status
                             )}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                ${ 
+                                    (p.payment_method === "bank" && p.payment_status === "pending")
+                                    ? `<button onclick="showBankInfo(${p.seller_id})" class="text-blue-600 hover:underline text-xs font-semibold">Account</button>`
+                                    : (p.payment_method === "e-wallet" ? "Tự động (Ví)" : "Đã chuyển")
+                                }
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                 ${
                                   p.payment_status === "pending"
@@ -628,7 +635,37 @@ async function loadAllTransactions() {
         '<tr><td colspan="8" class="text-center py-4 text-red-500">Lỗi khi tải giao dịch.</td></tr>';
   }
 }
+async function showBankInfo(sellerId) {
+    if (!sellerId) {
+        showToast("Không có ID người bán.", "error");
+        return;
+    } 
+    openModal('bank-info-modal');
+    document.getElementById('bank-info-title').textContent = `Thông tin Ngân hàng (Người Bán ID: ${sellerId})`;
+    document.getElementById('bank-info-loading').classList.remove('hidden');
+    document.getElementById('bank-info-details').classList.add('hidden');
+    document.getElementById('bank-info-name').textContent = '---';
+    document.getElementById('bank-info-number').textContent = '---';
 
+    try { 
+        const result = await apiRequest(`/admin/admin/users/${sellerId}/bank`);
+        
+        if (result && result.profile) {
+            const profile = result.profile;
+            document.getElementById('bank-info-name').textContent = profile.bank_name || 'Chưa cập nhật';
+            document.getElementById('bank-info-number').textContent = profile.account_number || 'Chưa cập nhật';
+        } else {
+            document.getElementById('bank-info-name').textContent = 'Không tìm thấy hồ sơ';
+        }
+ 
+        document.getElementById('bank-info-loading').classList.add('hidden');
+        document.getElementById('bank-info-details').classList.remove('hidden');
+
+    } catch (error) {
+        console.error(`Lỗi khi tải thông tin ngân hàng của user ${sellerId}:`, error);
+        document.getElementById('bank-info-loading').innerHTML = `<p class="text-red-500">${error.message}</p>`;
+    }
+}
 
 async function approvePayment(paymentId) {
   if (

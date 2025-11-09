@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request, current_app
 import os 
 from services.services_refactored import UserService as UserLogic
 from services.services_refactored import ProfileService as ProfileLogic 
-from controllers.controllers_api import serialize_user, serialize_profile  
+from controllers.controllers_api import serialize_user, serialize_profile, serialize_bank, serialize_info
 import logging
 
 internal_bp = Blueprint('internal_api', __name__, url_prefix='/internal')  
@@ -35,23 +35,25 @@ def internal_api_key_required():
 def internal_get_all_users():
     """Admin service gọi để lấy tất cả user (có lọc)."""
     status = request.args.get('status')
-    
-    # Giả định UserLogic.get_all_users() trả về 1 list các object User
-    # Lọc được thực hiện tại đây
     users = UserLogic.get_all_users() 
     
     if status:
         try:
-            # Lọc trong Python
+            
             users = [u for u in users if u.status == status]
         except AttributeError:
             logger.error("Đối tượng User không có thuộc tính 'status' để lọc.")
-            # Có thể bỏ qua lỗi và trả về list đầy đủ
             pass
             
     return jsonify([serialize_user(u) for u in users]), 200
 
-
+@internal_bp.route("/users/<int:user_id>/bank", methods = ["GET"])
+@internal_api_key_required()
+def internal_get_account_bank(user_id):
+    user = UserLogic.get_user_by_id(user_id)
+    if not user: return jsonify(error="User not found"), 404
+    profile = ProfileLogic.get_profile_by_user_id(user_id)  
+    return jsonify(profile=serialize_bank(profile)), 200
 
 @internal_bp.route("/users/<int:user_id>", methods=["GET"])
 @internal_api_key_required()
