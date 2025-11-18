@@ -319,10 +319,6 @@ class TransactionService:
         fake_success_url = f"{return_url}?resultCode={resultCode}&message={message}&orderId={orderId}&amount={amount_int}"
         return fake_success_url 
     
-    #thêm code 
-
-
-    #===thêm code 2
     @staticmethod
     def get_kpi_statistics():
         """

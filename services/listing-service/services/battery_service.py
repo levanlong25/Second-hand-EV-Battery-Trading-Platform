@@ -1,6 +1,7 @@
 from app import db
 from models.battery import Battery
-
+from services.listing_service import ListingService
+ 
 class BatteryService:
     @staticmethod
     def create_battery(user_id, data):
@@ -71,7 +72,6 @@ class BatteryService:
     @staticmethod
     def post_battery_to_listing(user_id, battery_id, data):
         """Đăng bán một viên pin đã có trong kho."""
-        from services.listing_service import ListingService
         listing, message = ListingService.create_listing(
             seller_id=user_id,
             listing_type='battery',
@@ -85,7 +85,6 @@ class BatteryService:
     @staticmethod
     def remove_battery_from_listing(user_id, user_role, battery_id):
         """Gỡ một viên pin khỏi sàn giao dịch."""
-        from services.listing_service import ListingService
         listing = ListingService.get_listing_by_battery_id(battery_id)
         if not listing:
             return False, "This battery is not currently listed."

@@ -17,10 +17,8 @@ def internal_api_key_required():
             provided_key = request.headers.get('X-Internal-Api-Key') # Key từ NiFi
             correct_key = os.environ.get('INTERNAL_API_KEY')       # Key từ .env
             
-            # --- (THÊM 2 DÒNG LOG DEBUG) ---
             logger.warning(f"DEBUG: Key Python đọc từ .env:  '[{correct_key}]'")
             logger.warning(f"DEBUG: Key NiFi gửi đến     : '[{provided_key}]'")
-            # --- (KẾT THÚC THÊM LOG) ---
 
             if not correct_key:
                 logger.error("INTERNAL_API_KEY chưa được cấu hình!")

@@ -2,10 +2,6 @@ docker-compose up -d --force-recreate listing-service
 docker-compose up -d --build frontend
 docker-compose down -v
 "\\wsl.localhost\docker-desktop\mnt\docker-desktop-disk\data\docker\volumes\second-handevbatterytradingplatform_listing_uploads\_data"
-
-
-
-
 <!-- lần đầu chạy -->
 <!-- 1. xây dựng (build) và chạy container của chương trình ở chế độ nền -->
 docker-compose up -d --build
@@ -13,6 +9,8 @@ docker-compose up -d --build
 <!-- db init: khởi tạo thư mục migration. -->
 <!-- db migrate: tạo file migration (các thay đổi bảng). -->
 <!-- db upgrade: áp dụng migration vào database. -->
+.\init_all_dbs.bat
+<!-- hoặc -->
 <!-- auction-service  -->
 docker-compose exec auction-service flask db init
 docker-compose exec auction-service flask db migrate -m "Initial auction service tables"

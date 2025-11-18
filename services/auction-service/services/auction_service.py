@@ -63,6 +63,8 @@ class AuctionService:
                    return None, "Pin này đã có trong một phiên đấu giá khác."
             else:
                  return None, "Loại đấu giá không hợp lệ." 
+            if float(data['current_bid']) >= 100000000 or float(data['current_bid'])<=0:
+                return None, "Giá bắt đầu đấu giá phải trong khoảng 0 đến 100 triệu"
             start_time_input = data['start_time']
             if isinstance(start_time_input, str):
                 try: 
@@ -451,8 +453,8 @@ class AuctionService:
             if is_approved: 
                 current_time = datetime.now(timezone.utc)
                 start_time_utc = to_utc(auction.start_time) 
-                if start_time_utc <= current_time + timedelta(hours=1):
-                    return None, "Cannot approve: Start time must be at least 1 hour from now."
+                if start_time_utc <= current_time:
+                    return None, "Cannot approve: Quá giờ bắt đầu."
 
                 auction.auction_status = 'prepare'
                 message = "Auction approved and is ready to start."

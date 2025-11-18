@@ -36,7 +36,8 @@ class ListingService:
                     return None, "This battery is already listed for sale."
             else:
                 return None, "Invalid listing type."
-
+            if data['price'] >= 100000000 or data['price'] <= 0:
+                return None, "Giá phải trong khoảng 0 đến 100 triệu"
             new_listing = Listing(
                 seller_id=seller_id,
                 listing_type=listing_type,

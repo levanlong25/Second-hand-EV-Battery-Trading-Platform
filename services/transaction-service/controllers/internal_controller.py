@@ -80,12 +80,6 @@ def internal_approve_payment(payment_id):
         logger.error(f"Lỗi internal_approve_payment {payment_id}: {e}", exc_info=True)
         return jsonify(error="Lỗi máy chủ nội bộ khi duyệt payment."), 500
     
-    
-#=========thêm hàm
-#===============
-
-    
-#===========thêm code 2
 @internal_bp.route("/stats/kpis", methods=["GET"])
 @internal_api_key_required()
 def internal_get_kpis():

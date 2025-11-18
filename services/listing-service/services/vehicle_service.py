@@ -1,6 +1,7 @@
 from app import db
 from models.vehicle import Vehicle
 from datetime import datetime
+from services.listing_service import ListingService
 
 class VehicleService:
     @staticmethod
@@ -68,7 +69,6 @@ class VehicleService:
     @staticmethod
     def post_vehicle_to_listing(user_id, vehicle_id, data):
         """Đăng bán một chiếc xe đã có trong kho."""
-        from services.listing_service import ListingService
         listing, message = ListingService.create_listing(
             seller_id=user_id,
             listing_type='vehicle',
@@ -82,7 +82,6 @@ class VehicleService:
     @staticmethod
     def remove_vehicle_from_listing(user_id, user_role, vehicle_id):
         """Gỡ một chiếc xe khỏi sàn giao dịch."""
-        from services.listing_service import ListingService
         listing = ListingService.get_listing_by_vehicle_id(vehicle_id)
         if not listing:
             return False, "This vehicle is not currently listed."

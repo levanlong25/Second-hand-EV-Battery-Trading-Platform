@@ -67,7 +67,8 @@ class UserService:
             return None, "Email already exists"
         if User.query.filter_by(username=username).first():
             return None, "Username already exists"
-            
+        if len(password) < 6:
+            return None, "The minimum length of the password must be 6"
         user = User(username=username, email=email, role=role, status=status)
         user.set_password(password)
         db.session.add(user)

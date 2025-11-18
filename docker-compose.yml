@@ -353,7 +353,6 @@ services:
       - ev_network
     env_file:  
       - ./.env
-
   nifi:
     image: apache/nifi:1.25.0
     container_name: nifi_service
