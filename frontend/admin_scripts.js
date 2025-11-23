@@ -203,8 +203,8 @@ async function loadAllListings() {
     pendingContainer.innerHTML = '<p class="text-gray-500">Đang tải...</p>';
 
     // 1. Lấy giá trị bộ lọc
-    const typeFilter = document.getElementById("filter-listing-type-admin")?.value;
-    const statusFilter = document.getElementById("filter-listing-status-admin")?.value;
+    const typeFilter = document.getElementById("listing-type-filter")?.value;
+    const statusFilter = document.getElementById("listing-status-filter")?.value;
 
     // 2. Xây dựng query params
     const params = new URLSearchParams();
@@ -221,9 +221,7 @@ async function loadAllListings() {
         if (!allListings || !Array.isArray(allListings)) {
              throw new Error("Không nhận được dữ liệu tin đăng.");
         }
-
-        // 4. Lọc riêng cho "Chờ duyệt" (Pending)
-        // (Chỉ hiển thị pending ở đây NẾU không có bộ lọc status nào được chọn)
+ 
         const pendingListings = statusFilter ? [] : allListings.filter(l => l.status === "pending");
         if (pendingListings.length > 0) {
              pendingContainer.innerHTML = pendingListings.map(listing => 
@@ -232,15 +230,11 @@ async function loadAllListings() {
         } else {
              pendingContainer.innerHTML = '<p class="text-gray-500">Không có tin đăng nào chờ duyệt.</p>';
         }
-
-        // 5. Lọc cho "Tất cả"
-        // Nếu có lọc status, hiển thị đúng status đó.
-        // Nếu KHÔNG lọc status, hiển thị mọi thứ TRỪ 'pending'.
+ 
         const allListingsFiltered = allListings.filter(l => {
-            if (statusFilter) {
-                return l.status === statusFilter; // Lọc theo status đã chọn
-            }
-            return l.status !== "pending"; // Mặc định: ẩn pending
+            const statusOk = statusFilter ? l.status === statusFilter : l.status !== "pending";
+            const typeOk = typeFilter ? l.listing_type === typeFilter : true;
+            return statusOk && typeOk;
         });
 
         if (allListingsFiltered.length > 0) {
@@ -301,8 +295,6 @@ function renderListingCard(listing) {
     `;
 }
 
-
-// --- THAY THẾ HÀM NÀY ---
 async function loadAllAuctions() {
     const pendingContainer = document.getElementById("pending-auctions-container");
     const allContainer = document.getElementById("all-auctions-container");
@@ -311,13 +303,13 @@ async function loadAllAuctions() {
 
     try {
         // 1. Lấy giá trị bộ lọc
-        const typeFilter = document.getElementById("filter-auction-type-admin")?.value;
-        const statusFilter = document.getElementById("filter-auction-status-admin")?.value;
+        const typeFilter = document.getElementById("auction-type-filter")?.value;
+        const statusFilter = document.getElementById("auction-status-filter")?.value;
 
         // 2. Xây dựng query params
         const params = new URLSearchParams();
         if (typeFilter) params.append("auction_type", typeFilter);
-        if (statusFilter) params.append("status", statusFilter);
+        if (statusFilter) params.append("auction_status", statusFilter);
         const queryString = params.toString();
 
         // 3. Gọi API (ĐÃ SỬA URL)
@@ -340,10 +332,9 @@ async function loadAllAuctions() {
 
         // 5. Lọc cho "Tất cả"
         const allAuctionsFiltered = allAuctions.filter(a => {
-            if (statusFilter) {
-                return a.auction_status === statusFilter; // Lọc theo status đã chọn
-            }
-            return a.auction_status !== "pending"; // Mặc định: ẩn pending
+            let statusOk = statusFilter ? a.auction_status === statusFilter : a.auction_status !== "pending";
+            let typeOk = typeFilter ? a.auction_type === typeFilter : true;
+            return statusOk && typeOk;
         });
 
         if (allAuctionsFiltered.length > 0) {
@@ -362,7 +353,6 @@ async function loadAllAuctions() {
     }
 }
 
-// --- THÊM HÀM HELPER NÀY (Để render card Auction) ---
 function renderAuctionCard(auction) {
     let priceLabel = "Giá hiện tại:";
     let winnerDisplayHtml = "";
