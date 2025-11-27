@@ -1,3 +1,12 @@
+<!-- Các bước khởi động dự án: -->
+- docker-compose up -d --build
+- truy cap http://localhost:8081/nifi/ run 
+- ngrok http 80 (chay ngrok de co the su dong momo)
+- localhost:8080 (guest+member)
+- localhost:8080/admin.html (admin)
+
+
+
 docker-compose up -d --force-recreate listing-service
 docker-compose up -d --build frontend
 docker-compose down -v
@@ -57,8 +66,12 @@ INSERT INTO ... () VALUES ();
 UPDATE ... SET _ = _ WHERE _ = _;
 select * from ...;
 DELETE FROM ... WHERE _ = _;
-UPDATE auctions SET start_time = start_time::date + interval '8 hour 5 minute', end_time = start_time::date + interval '10 hour 5 minute' WHERE EXTRACT(HOUR FROM start_time) = 8;
-UPDATE auctions SET auction_status = 'started' where auction_id = 1;
+UPDATE auctions SET start_time = start_time::date + interval '8 hour', end_time = start_time::date + interval '10 hour' WHERE id=1;
 
+UPDATE auctions SET auction_status = 'started' where auction_id = 1;
+<!-- link nifi -->
 http://localhost:8081/nifi/
+<!-- chay du lieu trong service ai-price -->
 docker-compose exec ai-pricing-service python seed.py
+<!-- chay ngrok -->
+ngrok http 80

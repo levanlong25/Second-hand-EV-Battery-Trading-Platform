@@ -24,7 +24,7 @@ class TransactionService:
     
     @staticmethod
     def get_transaction_by_buyer_id(buyer_id):
-        return Transaction.query.filter_by(buyer_id=buyer_id).all()
+        return Transaction.query.filter_by(buyer_id=buyer_id, transaction_status="pending").all()
     
 
     @staticmethod
